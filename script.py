@@ -1,4 +1,5 @@
 import requests
+import re
 from bs4 import BeautifulSoup
 
 
@@ -74,13 +75,13 @@ class IngredientDictionary:
 units = {'cup', 'tablespoon', 'teaspoon', 'pint', 'quart', 'clove',
          'pinch', 'ounce', 'pound', 'can', 'package', 'packet'}
 
-mods = {'chopped', 'shredded', 'diced', 'minced', 'grated', 'sharp', 'sliced',
-        'mashed', 'blanched', 'packed', 'melted', 'slivered', 'softened',
-        'scalded', 'frozen', 'sifted', 'finely', 'freshly',
-        'hot', 'cold', 'warm', 'boiling', 'lukewarm', 'room temperature',
-        'fresh', 'toasted', 'peeled', 'real',
-        '(optional)', 'pulp', 'crumbs',
-        'and'}
+pmods = {'chopped', 'shredded', 'diced', 'minced', 'grated', 'sharp', 'sliced',
+         'mashed', 'blanched', 'packed', 'melted', 'slivered', 'softened',
+         'scalded', 'frozen', 'sifted', 'finely', 'freshly',
+         'hot', 'cold', 'warm', 'boiling', 'lukewarm', 'room temperature', 'refrigerated',
+         'fresh', 'toasted', 'peeled', 'real'}
+smods = {'(optional)', 'pulp', 'crumbs'}
+imods = {'and', 'or'}
 
 fractions = {'½': 0.5, '⅓': 1/3, '⅔': 2/3, '¼': 0.25,
              '¾': 0.75, '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875}
@@ -98,82 +99,98 @@ class Recipe:
     def add(self, raw):
         self.raws.append(raw.lower().strip())
 
+    @staticmethod
+    def parse_item(item):
+        # find fraction character
+        for frac in fractions:
+            frac_loc = item.find(frac)
+            if frac_loc != -1:
+                break
+        # fractional part
+        if frac_loc == -1:
+            frac_part = 0
+            next_loc = item.find(' ') + 1
+        else:
+            frac_part = fractions[frac]
+            next_loc = frac_loc + 2
+        # integer part
+        if frac_loc == 0:
+            int_part = 0
+        else:
+            end = item.find(' ')
+            try:
+                int_part = int(item[:end])
+            except ValueError:
+                int_part = float(item[:end])
+        amount = frac_part + int_part
+        item = item[next_loc:]
+
+        # modification
+        mod_list = []
+        unit = ''
+        # temperature regex
+        mod = re.search(r'\(.*degrees.*\)', item)
+        if mod:
+            item = item[:mod.start()-1] + item[mod.end():]
+            mod_list.append(item[mod.start()+1:mod.end()-1])
+        # separator regex
+        mod = re.search('( - | -- |, ).*', item)
+        if mod:
+            item = item[:mod.start()]
+            mod = mod.group().strip()
+            mod = mod[mod.find(' ')+1:]
+            mod_list.extend(mod.split('(, and | and |, )'))
+        # ounces regex
+        mod = re.search(
+            r'^\(.* ounce\) (cans?|packages?|jars?|cakes?|containers?) ', item)
+        if mod:
+            item = item[mod.end():]
+            mod = mod.group()
+            unit_amount = mod[1:mod.find(' ')]
+            try:
+                unit_amount = int(unit_amount)
+            except ValueError:
+                unit_amount = float(unit_amount)
+            unit = 'ounce'
+            amount *= unit_amount
+
+        # unit
+        possibleunit = item[:item.find(' ')]
+        if possibleunit in units or possibleunit[:-1] in units:
+            unit = possibleunit
+            item = item[len(possibleunit)+1:]
+        elif possibleunit[-1] == 's' and possibleunit[:-1] in units:
+            unit = possibleunit[:-1]
+            item = item[len(possibleunit)+1:]
+
+        # prefix modifiers (diced, shredded, etc.)
+        while True:
+            possiblemod = item[:item.find(' ')]
+            if possiblemod in pmods:
+                mod_list.append(possiblemod)
+                item = item[len(possiblemod)+1:]
+            elif possiblemod in imods:
+                item = item[len(possiblemod)+1:]
+            else:
+                break
+
+        # suffix modifiers
+        while True:
+            possiblemod = item[item.rfind(' ')+1:]
+            if possiblemod in smods:
+                mod_list.append(possiblemod)
+                item = item[:-(len(possiblemod)+1)]
+            else:
+                break
+
+        return amount, mod_list, unit, item
+
     def parse(self):
         for item in self.raws:
-            # amount
-            # check for fractions
-            for frac in fractions:
-                floc = item.find(frac)
-                if floc != -1:
-                    uloc = floc + 2
-                    break
-            # no fractions
-            if floc == -1:
-                uloc = item.find(' ') + 1
-                try:
-                    amount = int(item[:uloc-1])
-                except ValueError:
-                    amount = float(item[:uloc-1])
-            # only fraction
-            elif floc == 0:
-                amount = fractions[item[0]]
-            # mixed number
-            else:
-                amount = int(item[:floc-1]) + fractions[item[floc]]
-            item = item[uloc:]
 
-            # modification
-            # -- separator
-            mloc = item.find('--')
-            if mloc != -1:
-                mod = item[mloc + 3:]
-                item = item[:mloc]
-            else:
-                # - separator
-                mloc = item.find(' - ')
-                if mloc != -1:
-                    mod = item[mloc + 3:]
-                    item = item[:mloc]
-                else:
-                    # , separator
-                    mloc = item.find(',')
-                    if mloc != -1:
-                        mod = item[mloc + 2:]
-                        item = item[:mloc]
-                    else:
-                        mod = ''
+            amount, mod_list, unit, item = Recipe.parse_item(item)
+            mod = ', '.join(mod_list)
 
-            # unit
-            possibleunit = item.split()[0]
-            if possibleunit in units or possibleunit[:-1] in units:
-                unit = possibleunit
-                item = item[len(unit)+1:]
-            else:
-                unit = ''
-
-            # more modifiers
-            # prefix modifiers (diced, shredded, etc.)
-            while True:
-                possiblemod = item[0:item.find(' ')]
-                if possiblemod in mods:
-                    if mod == '':
-                        mod = possiblemod
-                    else:
-                        mod = possiblemod + ', ' + mod
-                    item = item[len(possiblemod)+1:]
-                else:
-                    break
-            # suffix modifiers
-            while True:
-                possiblemod = item[item.rfind(' ')+1:]
-                if possiblemod in mods:
-                    if mod == '':
-                        mod = possiblemod
-                    else:
-                        mod = possiblemod + ', ' + mod
-                    item = item[:-(len(possiblemod)+1)]
-                else:
-                    break
             # recognized ingredient
             if self.idict.check(item):
                 pass
@@ -216,8 +233,8 @@ def parse(page):
 
 
 if __name__ == '__main__':
-    # for i in range(6663, 99999):
-    for i in range(7000, 99999):
+    for i in range(6663, 99999):
+        # for i in range(7000, 99999):
         page = get_page(i)
         print('RECIPE ' + str(i))
         print(parse(page))
