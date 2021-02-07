@@ -1,2 +1,4 @@
 settings.json
 config.py
+*.pem
+.vscode
