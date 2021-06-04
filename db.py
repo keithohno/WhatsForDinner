@@ -29,7 +29,7 @@ class MongoDriver:
 
     # check if ingredient is whitelisted
     def whitelist_check(self, name):
-        query1 = self.whitelist.find({"name": name})
+        query1 = self.whitelist.find({"names": name})
         query2 = self.whitelist.find({"group": name})
         return any(query1) or any(query2)
 
@@ -172,6 +172,8 @@ class IngredientManager():
 
         # add ingredient to buffer
         self.mongo.buffer_add(name)
+        with open("buffer_log", 'a') as f:
+            f.write(name + '\n')
 
     # process everything in the buffer
     def process_buffer(self):

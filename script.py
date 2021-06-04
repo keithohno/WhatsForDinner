@@ -1,81 +1,12 @@
 import requests
 import re
+from db import IngredientManager
 from bs4 import BeautifulSoup
 
-
-class IngredientDictionary:
-    def __init__(self, whitelist_file='ingredients', blacklist_file='ignored'):
-        self.whitelist = {}
-        self.blacklist = set({})
-        self.whitelist_file = whitelist_file
-        self.blacklist_file = blacklist_file
-        with open(whitelist_file, 'r') as f:
-            lines = f.read().splitlines()
-            for l in lines:
-                self.whitelist[l.split('>')[0]] = l.split('>')[1]
-        with open(blacklist_file, 'r') as f:
-            lines = f.read().splitlines()
-            for l in lines:
-                self.blacklist.add(l)
-
-    def check(self, name):
-        if name in self.blacklist or name in self.whitelist:
-            return True
-        elif name.endswith('s') and (name[:-1] in self.blacklist or name[:-1] in self.whitelist):
-            return True
-        elif name.endswith('es') and (name[:-2] in self.blacklist or name[:-2] in self.whitelist):
-            return True
-        elif name.endswith('ies') and (name[:-3]+'y' in self.blacklist or name[:-3]+'y' in self.whitelist):
-            return True
-        return False
-
-    def handle_add(self, name):
-        print('unrecognized ingredient: ' + name)
-        resp = ''
-        while resp != 'y' and resp != 'n':
-            resp = input('add to dict? (y/n): ').lower()
-        if resp == 'n':
-            resp = ''
-            while resp != 'y' and resp != 'n':
-                resp = input('add to blacklist? (y/n): ').lower()
-            if resp == 'y':
-                self.add_blacklist(name)
-            return
-
-        resp = ''
-        while resp != 'y' and resp != 'n':
-            resp = input('same name? (y/n): ').lower()
-        if resp == 'y':
-            self.add_whitelist(name, name)
-            return
-
-        if name[-1] == 's':
-            resp = ''
-            while resp != 'y' and resp != 'n':
-                resp = input('just remove plural `s`? (y/n): ').lower()
-            if resp == 'y':
-                self.add_whitelist(name[:-1], name[:-1])
-                return
-
-        name = input('enter name (or blank): ').lower() or name
-        resp = input('enter new name: (or blank)').lower() or name
-        self.add_whitelist(name, resp)
-
-    def add_whitelist(self, name, true_name):
-        self.whitelist[name] = true_name
-        with open(self.whitelist_file, 'a') as f:
-            f.write(str.format('{}>{}\n', name, true_name))
-
-    def add_blacklist(self, name):
-        self.blacklist.add(name)
-        with open(self.blacklist_file, 'a') as f:
-            f.write(str.format('{}\n', name))
-
-
 units = {'cup', 'tablespoon', 'teaspoon', 'pint', 'quart', 'clove',
-         'pinch', 'ounce', 'pound', 'can', 'package', 'packet'}
+         'pinch', 'ounce', 'pound', 'can', 'package', 'packet', 'bottle'}
 
-pmods = {'chopped', 'shredded', 'diced', 'minced', 'grated', 'sharp', 'sliced',
+pmods = {'chopped', 'shredded', 'diced', 'minced', 'grated', 'sharp', 'sliced', 'crushed',
          'mashed', 'blanched', 'packed', 'melted', 'slivered', 'softened',
          'scalded', 'frozen', 'sifted', 'finely', 'freshly',
          'hot', 'cold', 'warm', 'boiling', 'lukewarm', 'room temperature', 'refrigerated',
@@ -94,7 +25,7 @@ class Recipe:
         self.units = []
         self.ingredients = []
         self.mods = []
-        self.idict = IngredientDictionary()
+        self.IM = IngredientManager()
 
     def add(self, raw):
         self.raws.append(raw.lower().strip())
@@ -191,12 +122,8 @@ class Recipe:
             amount, mod_list, unit, item = Recipe.parse_item(item)
             mod = ', '.join(mod_list)
 
-            # recognized ingredient
-            if self.idict.check(item):
-                pass
-            # unrecognized ingredient
-            else:
-                self.idict.handle_add(item)
+            # send item to the ingredient manager `IM`
+            self.IM.add_ingredient(item)
 
             self.amounts.append(amount)
             self.mods.append(mod)
