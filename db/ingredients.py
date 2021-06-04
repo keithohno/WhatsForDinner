@@ -28,9 +28,8 @@ class MongoDriver:
 
     # check if ingredient is whitelisted
     def whitelist_check(self, name):
-        query1 = self.whitelist.find({"names": name})
-        query2 = self.whitelist.find({"group": name})
-        return any(query1) or any(query2)
+        query = self.whitelist.find({"name": name})
+        return any(query)
 
     # check if ingredient is buffered
     def buffer_check(self, name):
@@ -59,23 +58,28 @@ class MongoDriver:
         return self.buffer.find_one()
 
     # add ingredient to whitelist
+    # ingredients are stored as name -> group
+    # where name 'resolves' to group
+    # i.e. 'green onion'->'scallion'
     def whitelist_add(self, name, group=None):
-        group = name if group == None else group
-        # return if ingredient is already whitelisted
+        # return if name->X already exists
         if self.whitelist_check(name):
             return
-        # add ingredient to existing group
-        query = self.whitelist.find({"group": group})
-        try:
-            x = next(query)
-            if not name in x["names"]:
-                self.whitelist.update_one({"group": group}, {"$push": {"names": name}})
-        # creating a new group for the ingredient
-        except StopIteration:
-            if group != name:
-                self.whitelist.insert_one({"group": group, "names": [group, name]})
+        # adding name->group where name != group
+        if group and name != group:
+            group_res = self.whitelist.find_one({"name": group})
+            # group->X exists, so we need to add name->X
+            # note: ideally, X=group in all cases
+            if group_res:
+                self.whitelist.insert_one({"name": name, "group": group_res["group"]})
+            # group->X does not exist
+            # need to add name->group and group->group
             else:
-                self.whitelist.insert_one({"group": group, "names": [name]})
+                self.whitelist.insert_one({"name": name, "group": group})
+                self.whitelist.insert_one({"name": group, "group": group})
+        # adding name->name
+        else:
+            self.whitelist.insert_one({"name": name, "group": name})
 
     # clone ingredients db into a backup db
     def backup(self):
@@ -225,8 +229,7 @@ class IngredientManager:
         with open(whitelist_file, "a") as f:
             f.truncate(0)
             for item in self.mongo.whitelist.find():
-                for name in item["names"]:
-                    f.write(str.format("{}>{}\n", name, item["group"]))
+                f.write(str.format("{}>{}\n", item["name"], item["group"]))
         with open(blacklist_file, "a") as f:
             f.truncate(0)
             for item in self.mongo.blacklist.find():
