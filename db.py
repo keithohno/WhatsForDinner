@@ -65,17 +65,17 @@ class MongoDriver:
         query = self.whitelist.find({"group": group})
         try:
             x = next(query)
-            if not name in x["name"]:
+            if not name in x["names"]:
                 self.whitelist.update_one(
-                    {"group": group}, {"$push": {"name": name}})
+                    {"group": group}, {"$push": {"names": name}})
         # creating a new group for the ingredient
         except StopIteration:
             if group != name:
                 self.whitelist.insert_one(
-                    {"group": group, "name": [group, name]})
+                    {"group": group, "names": [group, name]})
             else:
                 self.whitelist.insert_one(
-                    {"group": group, "name": [name]})
+                    {"group": group, "names": [name]})
 
     # clone ingredients db into a backup db
     def backup(self):
@@ -201,6 +201,29 @@ class IngredientManager():
                 print('skipping ' + name)
             # remove item from buffer
 
+    def restore_from_local(self, whitelist_file='whitelist', blacklist_file='blacklist'):
+        self.clear()
+        with open(whitelist_file, 'r') as f:
+            lines = f.read().splitlines()
+            for l in lines:
+                self.mongo.whitelist_add(
+                    l.split('>')[0], group=l.split('>')[1])
+        with open(blacklist_file, 'r') as f:
+            lines = f.read().splitlines()
+            for l in lines:
+                self.mongo.blacklist_add(l)
+
+    def save_to_local(self, whitelist_file='whitelist', blacklist_file='blacklist'):
+        with open(whitelist_file, 'a') as f:
+            f.truncate(0)
+            for item in self.mongo.whitelist.find():
+                for name in item['names']:
+                    f.write(str.format('{}>{}\n', name, item['group']))
+        with open(blacklist_file, 'a') as f:
+            f.truncate(0)
+            for item in self.mongo.blacklist.find():
+                f.write(item['name'] + '\n')
+
 
 def test1():
     md = MongoDriver()
@@ -236,5 +259,12 @@ def test2():
     im.add_ingredient("potato")
     im.process_buffer()
 
+def test3():
+    im = IngredientManager()
+    im.clear()
+    im.restore_from_local()
+    im.save_to_local(whitelist_file="test_wl", blacklist_file="test_bl")
+    
 
-test2()
+
+test3()
