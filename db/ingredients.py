@@ -136,6 +136,18 @@ class IngredientManager:
     def restore(self):
         self.mongo.restore()
 
+    # checks if ingredient `name` or any plural form is whitelisted
+    def is_whitelisted(self, name):
+        if self.mongo.whitelist_check(name):
+            return True
+        elif name.endswith("s") and (self.mongo.whitelist_check(name[:-1])):
+            return True
+        elif name.endswith("es") and (self.mongo.whitelist_check(name[:-2])):
+            return True
+        elif name.endswith("ies") and (self.mongo.whitelist_check(name[:-3] + "y")):
+            return True
+        return False
+
     # checks if ingredient `name` or any plural form is already whitelisted or blacklisted
     def is_processed(self, name):
         if self.mongo.whitelist_check(name) or self.mongo.blacklist_check(name):
@@ -278,4 +290,4 @@ def test3():
     im.save_to_local(whitelist_file="test_wl", blacklist_file="test_bl")
 
 
-test3()
+# test3()
