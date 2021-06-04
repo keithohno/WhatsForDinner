@@ -2,12 +2,11 @@ import pymongo
 
 
 class MongoDriver:
-
     def __init__(self):
         uri = "mongodb+srv://cluster0.a55mv.mongodb.net/data?authSource=%24external&authMechanism=MONGODB-X509&retryWrites=true&w=majority"
-        self.client = pymongo.MongoClient(uri,
-                                          tls=True,
-                                          tlsCertificateKeyFile='X509-cert-192195340096089653.pem')
+        self.client = pymongo.MongoClient(
+            uri, tls=True, tlsCertificateKeyFile="X509-cert-192195340096089653.pem"
+        )
         self.db = self.client["ingredients"]
         self.whitelist = self.db["whitelist"]
         self.buffer = self.db["buffer"]
@@ -39,7 +38,11 @@ class MongoDriver:
         return any(query)
 
     def exists(self, name):
-        return self.blacklist_check(name) or self.buffer_check(name) or self.whitelist_check(name)
+        return (
+            self.blacklist_check(name)
+            or self.buffer_check(name)
+            or self.whitelist_check(name)
+        )
 
     # add ingredient to blacklist
     def blacklist_add(self, name):
@@ -66,16 +69,13 @@ class MongoDriver:
         try:
             x = next(query)
             if not name in x["names"]:
-                self.whitelist.update_one(
-                    {"group": group}, {"$push": {"names": name}})
+                self.whitelist.update_one({"group": group}, {"$push": {"names": name}})
         # creating a new group for the ingredient
         except StopIteration:
             if group != name:
-                self.whitelist.insert_one(
-                    {"group": group, "names": [group, name]})
+                self.whitelist.insert_one({"group": group, "names": [group, name]})
             else:
-                self.whitelist.insert_one(
-                    {"group": group, "names": [name]})
+                self.whitelist.insert_one({"group": group, "names": [name]})
 
     # clone ingredients db into a backup db
     def backup(self):
@@ -116,8 +116,7 @@ class MongoDriver:
         self.buffer.drop()
 
 
-class IngredientManager():
-
+class IngredientManager:
     def __init__(self):
         self.mongo = MongoDriver()
 
@@ -137,11 +136,20 @@ class IngredientManager():
     def is_processed(self, name):
         if self.mongo.whitelist_check(name) or self.mongo.blacklist_check(name):
             return True
-        elif name.endswith('s') and (self.mongo.whitelist_check(name[:-1]) or self.mongo.blacklist_check(name[:-1])):
+        elif name.endswith("s") and (
+            self.mongo.whitelist_check(name[:-1])
+            or self.mongo.blacklist_check(name[:-1])
+        ):
             return True
-        elif name.endswith('es') and (self.mongo.whitelist_check(name[:-2]) or self.mongo.blacklist_check(name[:-2])):
+        elif name.endswith("es") and (
+            self.mongo.whitelist_check(name[:-2])
+            or self.mongo.blacklist_check(name[:-2])
+        ):
             return True
-        elif name.endswith('ies') and (self.mongo.whitelist_check(name[:-3] + 'y') or self.mongo.blacklist_check(name[:-3] + 'y')):
+        elif name.endswith("ies") and (
+            self.mongo.whitelist_check(name[:-3] + "y")
+            or self.mongo.blacklist_check(name[:-3] + "y")
+        ):
             return True
         return False
 
@@ -149,17 +157,17 @@ class IngredientManager():
     def is_buffered(self, name):
         if self.mongo.buffer_check(name):
             return True
-        elif name.endswith('s') and self.mongo.buffer_check(name[:-1]):
+        elif name.endswith("s") and self.mongo.buffer_check(name[:-1]):
             return True
-        elif name.endswith('es') and self.mongo.buffer_check(name[:-2]):
+        elif name.endswith("es") and self.mongo.buffer_check(name[:-2]):
             return True
-        elif name.endswith('ies') and self.mongo.buffer_check(name[:-3] + 'y'):
+        elif name.endswith("ies") and self.mongo.buffer_check(name[:-3] + "y"):
             return True
-        elif self.mongo.buffer_check(name + 's'):
+        elif self.mongo.buffer_check(name + "s"):
             return True
-        elif self.mongo.buffer_check(name + 'es'):
+        elif self.mongo.buffer_check(name + "es"):
             return True
-        elif name.endswith('y') and self.mongo.buffer_check(name[:-1] + 'ies'):
+        elif name.endswith("y") and self.mongo.buffer_check(name[:-1] + "ies"):
             return True
         return False
 
@@ -172,59 +180,57 @@ class IngredientManager():
 
         # add ingredient to buffer
         self.mongo.buffer_add(name)
-        with open("buffer_log", 'a') as f:
-            f.write(name + '\n')
+        with open("buffer_log", "a") as f:
+            f.write(name + "\n")
 
     # process everything in the buffer
     def process_buffer(self):
         # iterate through db buffer
         for item in self.mongo.buffer.find():
-            name = item['name']
+            name = item["name"]
             # begin input process
-            print('unrecognized ingredient: ' + name)
-            resp = input('whitelist or blacklist? (w/b): ').lower()
+            print("unrecognized ingredient: " + name)
+            resp = input("whitelist or blacklist? (w/b): ").lower()
             # blacklist the item
-            if resp == 'b':
-                print('blacklisting X')
-                name = input('enter X (or blank for `' +
-                             name + '`): ').lower() or name
+            if resp == "b":
+                print("blacklisting X")
+                name = input("enter X (or blank for `" + name + "`): ").lower() or name
                 self.mongo.blacklist_add(name)
                 self.mongo.buffer.delete_many(item)
             # whitelist the item
-            elif resp == 'w':
-                print('adding association X -> Y ')
-                name = input('enter X (or blank for `' +
-                             name + '`): ').lower() or name
-                group = input('enter Y (or blank for `' +
-                              name + '`): ').lower() or name
+            elif resp == "w":
+                print("adding association X -> Y ")
+                name = input("enter X (or blank for `" + name + "`): ").lower() or name
+                group = input("enter Y (or blank for `" + name + "`): ").lower() or name
                 self.mongo.whitelist_add(name, group)
                 self.mongo.buffer.delete_many(item)
             else:
-                print('skipping ' + name)
+                print("skipping " + name)
             # remove item from buffer
 
-    def restore_from_local(self, whitelist_file='whitelist', blacklist_file='blacklist'):
+    def restore_from_local(
+        self, whitelist_file="whitelist", blacklist_file="blacklist"
+    ):
         self.clear()
-        with open(whitelist_file, 'r') as f:
+        with open(whitelist_file, "r") as f:
             lines = f.read().splitlines()
             for l in lines:
-                self.mongo.whitelist_add(
-                    l.split('>')[0], group=l.split('>')[1])
-        with open(blacklist_file, 'r') as f:
+                self.mongo.whitelist_add(l.split(">")[0], group=l.split(">")[1])
+        with open(blacklist_file, "r") as f:
             lines = f.read().splitlines()
             for l in lines:
                 self.mongo.blacklist_add(l)
 
-    def save_to_local(self, whitelist_file='whitelist', blacklist_file='blacklist'):
-        with open(whitelist_file, 'a') as f:
+    def save_to_local(self, whitelist_file="whitelist", blacklist_file="blacklist"):
+        with open(whitelist_file, "a") as f:
             f.truncate(0)
             for item in self.mongo.whitelist.find():
-                for name in item['names']:
-                    f.write(str.format('{}>{}\n', name, item['group']))
-        with open(blacklist_file, 'a') as f:
+                for name in item["names"]:
+                    f.write(str.format("{}>{}\n", name, item["group"]))
+        with open(blacklist_file, "a") as f:
             f.truncate(0)
             for item in self.mongo.blacklist.find():
-                f.write(item['name'] + '\n')
+                f.write(item["name"] + "\n")
 
 
 def test1():
@@ -261,12 +267,12 @@ def test2():
     im.add_ingredient("potato")
     im.process_buffer()
 
+
 def test3():
     im = IngredientManager()
     im.clear()
     im.restore_from_local()
     im.save_to_local(whitelist_file="test_wl", blacklist_file="test_bl")
-    
 
 
 test3()

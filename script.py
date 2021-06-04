@@ -1,21 +1,70 @@
 import requests
 import re
-from db import IngredientManager
+from db.ingredients import IngredientManager
 from bs4 import BeautifulSoup
 
-units = {'cup', 'tablespoon', 'teaspoon', 'pint', 'quart', 'clove',
-         'pinch', 'ounce', 'pound', 'can', 'package', 'packet', 'bottle'}
+units = {
+    "cup",
+    "tablespoon",
+    "teaspoon",
+    "pint",
+    "quart",
+    "clove",
+    "pinch",
+    "ounce",
+    "pound",
+    "can",
+    "package",
+    "packet",
+    "bottle",
+}
 
-pmods = {'chopped', 'shredded', 'diced', 'minced', 'grated', 'sharp', 'sliced', 'crushed',
-         'mashed', 'blanched', 'packed', 'melted', 'slivered', 'softened',
-         'scalded', 'frozen', 'sifted', 'finely', 'freshly',
-         'hot', 'cold', 'warm', 'boiling', 'lukewarm', 'room temperature', 'refrigerated',
-         'fresh', 'toasted', 'peeled', 'real'}
-smods = {'(optional)', 'pulp', 'crumbs'}
-imods = {'and', 'or'}
+pmods = {
+    "chopped",
+    "shredded",
+    "diced",
+    "minced",
+    "grated",
+    "sharp",
+    "sliced",
+    "crushed",
+    "mashed",
+    "blanched",
+    "packed",
+    "melted",
+    "slivered",
+    "softened",
+    "scalded",
+    "frozen",
+    "sifted",
+    "finely",
+    "freshly",
+    "hot",
+    "cold",
+    "warm",
+    "boiling",
+    "lukewarm",
+    "room temperature",
+    "refrigerated",
+    "fresh",
+    "toasted",
+    "peeled",
+    "real",
+}
+smods = {"(optional)", "pulp", "crumbs"}
+imods = {"and", "or"}
 
-fractions = {'½': 0.5, '⅓': 1/3, '⅔': 2/3, '¼': 0.25,
-             '¾': 0.75, '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875}
+fractions = {
+    "½": 0.5,
+    "⅓": 1 / 3,
+    "⅔": 2 / 3,
+    "¼": 0.25,
+    "¾": 0.75,
+    "⅛": 0.125,
+    "⅜": 0.375,
+    "⅝": 0.625,
+    "⅞": 0.875,
+}
 
 
 class Recipe:
@@ -40,7 +89,7 @@ class Recipe:
         # fractional part
         if frac_loc == -1:
             frac_part = 0
-            next_loc = item.find(' ') + 1
+            next_loc = item.find(" ") + 1
         else:
             frac_part = fractions[frac]
             next_loc = frac_loc + 2
@@ -48,7 +97,7 @@ class Recipe:
         if frac_loc == 0:
             int_part = 0
         else:
-            end = item.find(' ')
+            end = item.find(" ")
             try:
                 int_part = int(item[:end])
             except ValueError:
@@ -58,59 +107,60 @@ class Recipe:
 
         # modification
         mod_list = []
-        unit = ''
+        unit = ""
         # temperature regex
-        mod = re.search(r'\(.*degrees.*\)', item)
+        mod = re.search(r"\(.*degrees.*\)", item)
         if mod:
-            item = item[:mod.start()-1] + item[mod.end():]
-            mod_list.append(item[mod.start()+1:mod.end()-1])
+            item = item[: mod.start() - 1] + item[mod.end() :]
+            mod_list.append(item[mod.start() + 1 : mod.end() - 1])
         # separator regex
-        mod = re.search('( - | -- |, ).*', item)
+        mod = re.search("( - | -- |, ).*", item)
         if mod:
-            item = item[:mod.start()]
+            item = item[: mod.start()]
             mod = mod.group().strip()
-            mod = mod[mod.find(' ')+1:]
-            mod_list.extend(mod.split('(, and | and |, )'))
+            mod = mod[mod.find(" ") + 1 :]
+            mod_list.extend(mod.split("(, and | and |, )"))
         # ounces regex
         mod = re.search(
-            r'^\(.* ounce\) (cans?|packages?|jars?|cakes?|containers?) ', item)
+            r"^\(.* ounce\) (cans?|packages?|jars?|cakes?|containers?) ", item
+        )
         if mod:
-            item = item[mod.end():]
+            item = item[mod.end() :]
             mod = mod.group()
-            unit_amount = mod[1:mod.find(' ')]
+            unit_amount = mod[1 : mod.find(" ")]
             try:
                 unit_amount = int(unit_amount)
             except ValueError:
                 unit_amount = float(unit_amount)
-            unit = 'ounce'
+            unit = "ounce"
             amount *= unit_amount
 
         # unit
-        possibleunit = item[:item.find(' ')]
+        possibleunit = item[: item.find(" ")]
         if possibleunit in units or possibleunit[:-1] in units:
             unit = possibleunit
-            item = item[len(possibleunit)+1:]
-        elif possibleunit[-1] == 's' and possibleunit[:-1] in units:
+            item = item[len(possibleunit) + 1 :]
+        elif possibleunit[-1] == "s" and possibleunit[:-1] in units:
             unit = possibleunit[:-1]
-            item = item[len(possibleunit)+1:]
+            item = item[len(possibleunit) + 1 :]
 
         # prefix modifiers (diced, shredded, etc.)
         while True:
-            possiblemod = item[:item.find(' ')]
+            possiblemod = item[: item.find(" ")]
             if possiblemod in pmods:
                 mod_list.append(possiblemod)
-                item = item[len(possiblemod)+1:]
+                item = item[len(possiblemod) + 1 :]
             elif possiblemod in imods:
-                item = item[len(possiblemod)+1:]
+                item = item[len(possiblemod) + 1 :]
             else:
                 break
 
         # suffix modifiers
         while True:
-            possiblemod = item[item.rfind(' ')+1:]
+            possiblemod = item[item.rfind(" ") + 1 :]
             if possiblemod in smods:
                 mod_list.append(possiblemod)
-                item = item[:-(len(possiblemod)+1)]
+                item = item[: -(len(possiblemod) + 1)]
             else:
                 break
 
@@ -120,7 +170,7 @@ class Recipe:
         for item in self.raws:
 
             amount, mod_list, unit, item = Recipe.parse_item(item)
-            mod = ', '.join(mod_list)
+            mod = ", ".join(mod_list)
 
             # send item to the ingredient manager `IM`
             self.IM.add_ingredient(item)
@@ -131,27 +181,25 @@ class Recipe:
             self.ingredients.append(item)
 
     def __str__(self):
-        ret = ''
+        ret = ""
         for a, u, i, m in zip(self.amounts, self.units, self.ingredients, self.mods):
-            ret += str.format('{:<6} | {:<20} | {:<40} | {}\n',
-                              round(a, 3), u, i, m)
+            ret += str.format("{:<6} | {:<20} | {:<40} | {}\n", round(a, 3), u, i, m)
         return ret
 
 
 def get_page(recipe_num):
-    prefix = 'https://www.allrecipes.com/recipe/'
+    prefix = "https://www.allrecipes.com/recipe/"
     URL = prefix + str(recipe_num)
     page = requests.get(URL)
-    if page.url.split('/')[-3] != str(recipe_num):
-        print('ERROR: NO RECIPE FOUND WITH NUMBER ' + str(recipe_num))
+    if page.url.split("/")[-3] != str(recipe_num):
+        print("ERROR: NO RECIPE FOUND WITH NUMBER " + str(recipe_num))
     return page
 
 
 def parse(page):
-    soup = BeautifulSoup(page.content, 'html.parser')
-    item_tags = soup(class_='ingredients-item-name')
-    item_strs = list(map(lambda s: ' '.join(
-        str(s.contents[0]).split()), item_tags))
+    soup = BeautifulSoup(page.content, "html.parser")
+    item_tags = soup(class_="ingredients-item-name")
+    item_strs = list(map(lambda s: " ".join(str(s.contents[0]).split()), item_tags))
     recipe = Recipe()
     for item in item_strs:
         recipe.add(item)
@@ -159,9 +207,9 @@ def parse(page):
     return recipe
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     for i in range(6663, 99999):
         # for i in range(7000, 99999):
         page = get_page(i)
-        print('RECIPE ' + str(i))
+        print("RECIPE " + str(i))
         print(parse(page))
