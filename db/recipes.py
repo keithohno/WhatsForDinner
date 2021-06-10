@@ -197,17 +197,18 @@ class RecipeManager:
         self.db = self.client["recipes"]
         self.valid = self.db["valid"]
         self.invalid = self.db["invalid"]
+        self.buffer = self.db["buffer"]
         self.IM = IngredientManager()
 
     # generic function for inserting or updating a document to a collection
     def collection_add(self, collection, payload):
-        if any(self.db[collection].find({"id": payload["id"]})):
-            self.db[collection].update_one({"id": payload["id"]}, {"$set": payload})
+        if any(self.db[collection].find({"url": payload["url"]})):
+            self.db[collection].update_one({"url": payload["url"]}, {"$set": payload})
         else:
             self.db[collection].insert_one(payload)
 
     # adds a recipe to the database
-    def add_recipe(self, recipe, name, id_):
+    def add_recipe(self, recipe, name, url):
         # make sure all ingredients are on the whitelist
         blacklist = []
         buffer = []
@@ -227,7 +228,7 @@ class RecipeManager:
         # only includes recipe number and lists of 'offenses'
         if blacklist or buffer or other:
             # build payload
-            payload = {"id": id_}
+            payload = {"url": url}
             if blacklist:
                 payload["blacklist"] = blacklist
             if buffer:
@@ -241,10 +242,46 @@ class RecipeManager:
                 "valid",
                 {
                     "name": name,
-                    "id": id_,
+                    "url": url,
                     "ingredients": recipe.ingredients,
                     "amounts": recipe.amounts,
                     "units": recipe.units,
                     "mods": recipe.mods,
                 },
             )
+
+    # reprocess invalid items (in case buffer ingredients have been moved to whitelist/blacklist)
+    def process_invalid(self):
+        # iterate through recipes with buffer ingredients
+        for document in self.invalid.find({"buffer": {"$exists": "true"}}):
+            blacklist = document.get("blacklist", [])
+            other = document.get("other", [])
+            buffer = []
+            # iterate through buffer ingredients
+            for ingredient in document["buffer"]:
+                # ingredient is still buffered
+                if self.IM.is_buffered(ingredient):
+                    buffer.append(ingredient)
+                # ingredient has been blacklisted
+                elif self.IM.is_blacklisted(ingredient):
+                    blacklist.append(ingredient)
+                # if ingredient has been whitelisted, we don't need it anymore
+            # rebuild document payload
+            payload = {"url": document["url"]}
+            if blacklist:
+                payload["blacklist"] = blacklist
+            if buffer:
+                payload["buffer"] = buffer
+            if other:
+                payload["other"] = other
+            self.collection_add("invalid", payload)
+            # if all buffer items have been removed, and there re no additional `blacklist` or `other`
+            # violations, move recipe from `invalid` to `buffer`
+            if not (buffer or blacklist or other):
+                self.invalid.remove({"url": document["url"]})
+                self.buffer.collection_add("invalid", payload)
+            else:
+                self.collection_add("buffer", payload)
+
+
+""

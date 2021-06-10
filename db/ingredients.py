@@ -136,6 +136,10 @@ class IngredientManager:
     def restore(self):
         self.mongo.restore()
 
+    # count the number of documents in buffer
+    def buffer_size(self):
+        return self.mongo.buffer.count_documents({})
+
     # checks if ingredient `name` or any plural form is whitelisted
     def is_whitelisted(self, name):
         if self.mongo.whitelist_check(name):
@@ -241,48 +245,3 @@ class IngredientManager:
             f.truncate(0)
             for item in self.mongo.blacklist.find():
                 f.write(item["name"] + "\n")
-
-
-def test1():
-    md = MongoDriver()
-    md.clear()
-    md.blacklist_add("apple")
-    md.blacklist_add("apricot")
-    md.blacklist_add("apricot")
-    md.buffer_add("banana")
-    md.buffer_add("banana")
-    md.buffer_add("brioche")
-    md.buffer_add("bread")
-    md.buffer_add("bread flour")
-    md.whitelist_add("calzone", "calzone")
-    md.whitelist_add("cauliflower", "cauliflower")
-    md.whitelist_add("chicken cutlet", "chicken")
-    md.whitelist_add("chicken breast", "chicken")
-    md.whitelist_add("chicken thigh", "chicken")
-    md.whitelist_add("chicken")
-    md.whitelist_add("chicken thigh", "chicken")
-    # todo: write assertions
-
-
-def test2():
-    im = IngredientManager()
-    im.clear()
-    im.add_ingredient("potatoes")
-    im.add_ingredient("rutabaga")
-    im.add_ingredient("carrot")
-    im.add_ingredient("potatoes")
-    im.add_ingredient("potatoes")
-    im.add_ingredient("tomato")
-    im.add_ingredient("tomato")
-    im.add_ingredient("potato")
-    im.process_buffer()
-
-
-def test3():
-    im = IngredientManager()
-    im.clear()
-    im.restore_from_local()
-    im.save_to_local(whitelist_file="test_wl", blacklist_file="test_bl")
-
-
-# test3()

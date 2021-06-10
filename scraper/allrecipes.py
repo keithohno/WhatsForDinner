@@ -1,8 +1,10 @@
 import requests
 from db.recipes import Recipe, RecipeManager
+from db.ingredients import IngredientManager
 from bs4 import BeautifulSoup
 import random
 
+ROOT_URL = "https://www.allrecipes.com/"
 
 # gets the name of a recipe
 def get_recipe_name(page):
@@ -14,19 +16,14 @@ def get_recipe_name(page):
         return item_tags[0].contents[0].strip()
 
 
-# generates a unique id from a recipe
-def get_recipe_id(page):
-    segments = page.url.split("/")
-    segments = [x for x in segments if x]
-    return "allrecipes_" + segments[-2] + "_" + segments[-1]
-
-
 # returns a new page randomly chosen from links on the current page
 def explore(page):
     soup = BeautifulSoup(page.content, "html.parser")
     atags = soup("a")
     while True:
         link = random.choice(atags).get("href")
+        if link == None:
+            link = ROOT_URL
         # return if the link leads to another subpage
         # repeat if the link is external
         segments = link.split("/")
@@ -51,12 +48,19 @@ def parse(page):
 
 if __name__ == "__main__":
     RM = RecipeManager()
-    page = requests.get("https://www.allrecipes.com/recipe/6689/nut-and-fruit-bread/")
-    # keep finding new recipes by exploring random links
+    IM = IngredientManager()
+    page = requests.get(ROOT_URL)
     while True:
-        print("VISITED " + page.url)
-        recipe = parse(page)
-        if recipe:
-            print("PARSED " + page.url)
-            RM.add_recipe(recipe, get_recipe_name(page), get_recipe_id(page))
-        page = explore(page)
+        # keep finding new recipes by exploring random links
+        # stop when ingredient buffer gets too large
+        while IM.buffer_size() < 100:
+            print("VISITED " + page.url)
+            recipe = parse(page)
+            if recipe:
+                print("PARSED " + page.url)
+                RM.add_recipe(recipe, get_recipe_name(page), page.url)
+                print("BUFSIZE: " + str(IM.buffer_size()))
+            page = explore(page)
+        # process buffer items
+        IM.process_buffer()
+        RM.process_invalid()
