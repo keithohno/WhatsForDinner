@@ -148,26 +148,21 @@ class IngredientManager:
             return True
         return False
 
-    # checks if ingredient `name` or any plural form is already whitelisted or blacklisted
-    def is_processed(self, name):
-        if self.mongo.whitelist_check(name) or self.mongo.blacklist_check(name):
+    # checks if ingredient `name` or any plural form is whitelisted
+    def is_blacklisted(self, name):
+        if self.mongo.blacklist_check(name):
             return True
-        elif name.endswith("s") and (
-            self.mongo.whitelist_check(name[:-1])
-            or self.mongo.blacklist_check(name[:-1])
-        ):
+        elif name.endswith("s") and (self.mongo.blacklist_check(name[:-1])):
             return True
-        elif name.endswith("es") and (
-            self.mongo.whitelist_check(name[:-2])
-            or self.mongo.blacklist_check(name[:-2])
-        ):
+        elif name.endswith("es") and (self.mongo.blacklist_check(name[:-2])):
             return True
-        elif name.endswith("ies") and (
-            self.mongo.whitelist_check(name[:-3] + "y")
-            or self.mongo.blacklist_check(name[:-3] + "y")
-        ):
+        elif name.endswith("ies") and (self.mongo.blacklist_check(name[:-3] + "y")):
             return True
         return False
+
+    # checks if ingredient `name` or any plural form is already whitelisted or blacklisted
+    def is_processed(self, name):
+        return self.is_whitelisted(name) or self.is_blacklisted(name)
 
     # checks if ingredient `name` or any plural form is already in the buffer
     def is_buffered(self, name):

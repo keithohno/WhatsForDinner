@@ -1,6 +1,6 @@
 import pymongo
 import re
-from .ingredients import IngredientManager
+from db.ingredients import IngredientManager
 
 
 class Recipe:
@@ -74,7 +74,7 @@ class Recipe:
         self.IM = IngredientManager()
 
     def add(self, raw):
-        self.raws.append(raw.lower().strip())
+        self.raws.append(" ".join(raw.split()).lower().strip())
 
     @staticmethod
     def parse_item(item):
@@ -98,7 +98,11 @@ class Recipe:
             try:
                 int_part = int(item[:end])
             except ValueError:
-                int_part = float(item[:end])
+                try:
+                    int_part = float(item[:end])
+                except ValueError:
+                    int_part = 0
+                    next_loc = 0
         amount = frac_part + int_part
         item = item[next_loc:]
 
@@ -195,37 +199,52 @@ class RecipeManager:
         self.invalid = self.db["invalid"]
         self.IM = IngredientManager()
 
+    # generic function for inserting or updating a document to a collection
+    def collection_add(self, collection, payload):
+        if any(self.db[collection].find({"id": payload["id"]})):
+            self.db[collection].update_one({"id": payload["id"]}, {"$set": payload})
+        else:
+            self.db[collection].insert_one(payload)
+
     # adds a recipe to the database
-    def add_recipe(self, recipe, name, number):
+    def add_recipe(self, recipe, name, id_):
         # make sure all ingredients are on the whitelist
         blacklist = []
+        buffer = []
+        other = []
         for ingredient in recipe.ingredients:
-            if not self.IM.is_whitelisted(ingredient):
+            if self.IM.is_blacklisted(ingredient):
                 blacklist.append(ingredient)
+            if self.IM.is_buffered(ingredient):
+                buffer.append(ingredient)
         # make sure ingredients list is not empty (happens occasionally during parsing)
         if not recipe.ingredients:
-            blacklist.append("EMPTY")
+            other.append("EMPTY")
         # make sure recipe title was properly parsed
         if not name:
-            blacklist.append("NO NAME")
-        # blacklist is not empty => recipe should be marked invalid
-        # only includes recipe number and list of blacklisted ingredients
-        if blacklist:
-            self.invalid.insert_one(
-                {
-                    "number": number,
-                    "ingredients": blacklist,
-                }
-            )
+            other.append("NO NAME")
+        # blacklist/buffer/other is not empty => recipe should be marked invalid
+        # only includes recipe number and lists of 'offenses'
+        if blacklist or buffer or other:
+            # build payload
+            payload = {"id": id_}
+            if blacklist:
+                payload["blacklist"] = blacklist
+            if buffer:
+                payload["buffer"] = buffer
+            if other:
+                payload["other"] = other
+            self.collection_add("invalid", payload)
         # add recipe to `valid` list
         else:
-            self.valid.insert_one(
+            self.collection_add(
+                "valid",
                 {
                     "name": name,
-                    "number": number,
+                    "id": id_,
                     "ingredients": recipe.ingredients,
                     "amounts": recipe.amounts,
                     "units": recipe.units,
                     "mods": recipe.mods,
-                }
+                },
             )
