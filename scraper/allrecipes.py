@@ -24,8 +24,10 @@ def explore(page):
         link = random.choice(atags).get("href")
         if link == None:
             link = ROOT_URL
+        # repeat if the link is mailto
+        if link.startswith("mailto"):
+            continue
         # return if the link leads to another subpage
-        # repeat if the link is external
         segments = link.split("/")
         if len(segments) > 2 and segments[2] == "www.allrecipes.com":
             return requests.get(link)

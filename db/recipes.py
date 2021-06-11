@@ -279,7 +279,7 @@ class RecipeManager:
             # violations, move recipe from `invalid` to `buffer`
             if not (buffer or blacklist or other):
                 self.invalid.remove({"url": document["url"]})
-                self.buffer.collection_add("invalid", payload)
+                self.collection_add("invalid", payload)
             else:
                 self.collection_add("buffer", payload)
 
