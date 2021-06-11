@@ -18,6 +18,8 @@ class Recipe:
         "package",
         "packet",
         "bottle",
+        "bunch",
+        "head",
     }
     pmods = {
         "chopped",
@@ -31,12 +33,14 @@ class Recipe:
         "mashed",
         "blanched",
         "packed",
+        "crumbled",
         "melted",
         "slivered",
         "softened",
         "scalded",
         "frozen",
         "sifted",
+        "thinly",
         "finely",
         "freshly",
         "hot",
@@ -50,6 +54,11 @@ class Recipe:
         "toasted",
         "peeled",
         "real",
+        "large",
+        "medium",
+        "small",
+        "skinless",
+        "boneless",
     }
     fractions = {
         "½": 0.5,
@@ -62,8 +71,8 @@ class Recipe:
         "⅝": 0.625,
         "⅞": 0.875,
     }
-    smods = {"(optional)", "pulp", "crumbs"}
-    imods = {"and", "or"}
+    smods = {"(optional)", "for frying", "to taste", "for garnish"}
+    imods = {"and", "or", "-", "--"}
 
     def __init__(self):
         self.raws = []
@@ -78,52 +87,56 @@ class Recipe:
 
     @staticmethod
     def parse_item(item):
+
+        # parsing out the fraction:
+        # this chops off the numerical front end of the ingredient string
         # find fraction character
         for frac in Recipe.fractions:
             frac_loc = item.find(frac)
             if frac_loc != -1:
                 break
-        # fractional part
+        # setting frac_part
+        # no fractions -- frac_part = 0
         if frac_loc == -1:
             frac_part = 0
             next_loc = item.find(" ") + 1
+        # fraction found -- use fraction dictionary
         else:
             frac_part = Recipe.fractions[frac]
             next_loc = frac_loc + 2
-        # integer part
+        # setting int_part
+        # only fractional part -- int_part = 0
         if frac_loc == 0:
             int_part = 0
+        # possibly mixed number
         else:
             end = item.find(" ")
+            # try to parse first word as an int
             try:
                 int_part = int(item[:end])
             except ValueError:
+                # try to parse first word as a decimal
                 try:
                     int_part = float(item[:end])
                 except ValueError:
+                    # there is no number
                     int_part = 0
                     next_loc = 0
         amount = frac_part + int_part
         item = item[next_loc:]
 
-        # modification
-        mod_list = []
+        # unit
         unit = ""
-        # temperature regex
-        mod = re.search(r"\(.*degrees.*\)", item)
-        if mod:
-            item = item[: mod.start() - 1] + item[mod.end() :]
-            mod_list.append(item[mod.start() + 1 : mod.end() - 1])
-        # separator regex
-        mod = re.search("( - | -- |, ).*", item)
-        if mod:
-            item = item[: mod.start()]
-            mod = mod.group().strip()
-            mod = mod[mod.find(" ") + 1 :]
-            mod_list.extend(mod.split("(, and | and |, )"))
+        possibleunit = item[: item.find(" ")]
+        if possibleunit in Recipe.units or possibleunit[:-1] in Recipe.units:
+            unit = possibleunit
+            item = item[len(possibleunit) + 1 :]
+        elif possibleunit[-1] == "s" and possibleunit[:-1] in Recipe.units:
+            unit = possibleunit[:-1]
+            item = item[len(possibleunit) + 1 :]
         # ounces regex
         mod = re.search(
-            r"^\(.* ounce\) (cans?|packages?|jars?|cakes?|containers?) ", item
+            r"^\(.* ounce\) (cans? |packages? |jars? |cakes? |containers? |)", item
         )
         if mod:
             item = item[mod.end() :]
@@ -136,34 +149,62 @@ class Recipe:
             unit = "ounce"
             amount *= unit_amount
 
-        # unit
-        possibleunit = item[: item.find(" ")]
-        if possibleunit in Recipe.units or possibleunit[:-1] in Recipe.units:
-            unit = possibleunit
-            item = item[len(possibleunit) + 1 :]
-        elif possibleunit[-1] == "s" and possibleunit[:-1] in Recipe.units:
-            unit = possibleunit[:-1]
-            item = item[len(possibleunit) + 1 :]
+        # modification
+        mod_list = []
+        # temperature regex
+        mod = re.search(r"\(.*degrees.*\)", item)
+        if mod:
+            item = item[: mod.start() - 1] + item[mod.end() :]
+            mod_list.append(item[mod.start() + 1 : mod.end() - 1])
+        # 'such as' or 'preferably' regex
+        mod = re.search(r"\((such as|preferably).*\)", item)
+        if mod:
+            item = item[: mod.start() - 1] + item[mod.end() :]
+            mod_list.append(item[mod.start() + 1 : mod.end() - 1])
 
         # prefix modifiers (diced, shredded, etc.)
         while True:
             possiblemod = item[: item.find(" ")]
+            pmodlen = len(possiblemod)
+            if possiblemod[-1] == ",":
+                possiblemod = possiblemod[:-1]
+                pmodlen += 1
             if possiblemod in Recipe.pmods:
                 mod_list.append(possiblemod)
-                item = item[len(possiblemod) + 1 :]
+                item = item[pmodlen + 1 :]
             elif possiblemod in Recipe.imods:
-                item = item[len(possiblemod) + 1 :]
+                item = item[pmodlen + 1 :]
             else:
                 break
 
         # suffix modifiers
-        while True:
-            possiblemod = item[item.rfind(" ") + 1 :]
-            if possiblemod in Recipe.smods:
-                mod_list.append(possiblemod)
-                item = item[: -(len(possiblemod) + 1)]
+        for suf in Recipe.smods:
+            if item.endswith(suf):
+                item = item[: (-len(suf) - 1)]
+                mod_list.append(suf)
+        # separator regex (suffix)
+        mod = re.search("( - | -- |, ).*", item)
+        if mod:
+            item = item[: mod.start()]
+            mod = mod.group().strip()
+            mod = mod[mod.find(" ") + 1 :]
+            mod_list.extend(mod.split("(, and | and |, )"))
+        # suffix modifiers (again)
+        for suf in Recipe.smods:
+            if item.endswith(suf):
+                item = item[: (-len(suf) - 1)]
+                mod_list.append(suf)
+
+        # item splitting
+        # i.e. 'salt and pepper'
+        if amount == 0 and unit == "":
+            split_loc = item.find(" and ")
+            if split_loc != -1:
+                item = item.split(" and ")
             else:
-                break
+                split_loc = item.find(" or ")
+                if split_loc != -1:
+                    item = item.split(" or ")
 
         return amount, mod_list, unit, item
 
@@ -174,12 +215,21 @@ class Recipe:
             mod = ", ".join(mod_list)
 
             # send item to the ingredient manager `IM`
-            self.IM.add_ingredient(item)
+            # self.IM.add_ingredient(item)
 
-            self.amounts.append(amount)
-            self.mods.append(mod)
-            self.units.append(unit)
-            self.ingredients.append(item)
+            # repeat item if split during parsing
+            if isinstance(item, list):
+                for i in item:
+                    self.amounts.append(amount)
+                    self.mods.append(mod)
+                    self.units.append(unit)
+                    self.ingredients.append(i)
+            # otherwise, proceed as usual
+            else:
+                self.amounts.append(amount)
+                self.mods.append(mod)
+                self.units.append(unit)
+                self.ingredients.append(item)
 
     def __str__(self):
         ret = ""
@@ -265,6 +315,13 @@ class RecipeManager:
                 # ingredient has been blacklisted
                 elif self.IM.is_blacklisted(ingredient):
                     blacklist.append(ingredient)
+                # ingredient has been whitelisted
+                elif self.IM.is_whitelisted(ingredient):
+                    pass
+                # ingredient has somehow disappeared from the manager
+                # re-add it to the buffer
+                else:
+                    self.IM.add_ingredient(ingredient)
                 # if ingredient has been whitelisted, we don't need it anymore
             # rebuild document payload
             payload = {"url": document["url"]}
