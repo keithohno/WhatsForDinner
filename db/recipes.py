@@ -20,6 +20,9 @@ class Recipe:
         "bottle",
         "bunch",
         "head",
+        "slice",
+        "dash",
+        "dashes",
     }
     pmods = {
         "chopped",
@@ -168,7 +171,6 @@ class Recipe:
             pmodlen = len(possiblemod)
             if possiblemod[-1] == ",":
                 possiblemod = possiblemod[:-1]
-                pmodlen += 1
             if possiblemod in Recipe.pmods:
                 mod_list.append(possiblemod)
                 item = item[pmodlen + 1 :]
@@ -214,9 +216,6 @@ class Recipe:
             amount, mod_list, unit, item = Recipe.parse_item(item)
             mod = ", ".join(mod_list)
 
-            # send item to the ingredient manager `IM`
-            # self.IM.add_ingredient(item)
-
             # repeat item if split during parsing
             if isinstance(item, list):
                 for i in item:
@@ -224,12 +223,19 @@ class Recipe:
                     self.mods.append(mod)
                     self.units.append(unit)
                     self.ingredients.append(i)
+
+                    # send item to the ingredient manager `IM`
+                    self.IM.add_ingredient(i)
+
             # otherwise, proceed as usual
             else:
                 self.amounts.append(amount)
                 self.mods.append(mod)
                 self.units.append(unit)
                 self.ingredients.append(item)
+
+                # send item to the ingredient manager `IM`
+                self.IM.add_ingredient(item)
 
     def __str__(self):
         ret = ""
@@ -339,6 +345,3 @@ class RecipeManager:
                 self.collection_add("invalid", payload)
             else:
                 self.collection_add("buffer", payload)
-
-
-""
