@@ -12,6 +12,7 @@ class Recipe:
         "quart",
         "clove",
         "pinch",
+        "dash",
         "ounce",
         "pound",
         "can",
@@ -20,9 +21,12 @@ class Recipe:
         "bottle",
         "bunch",
         "head",
+        "stalk",
+        "ear",
         "slice",
-        "dash",
-        "dashes",
+        "loaf",
+        "square",
+        "cube",
     }
     pmods = {
         "chopped",
@@ -54,15 +58,20 @@ class Recipe:
         "room temperature",
         "refrigerated",
         "fresh",
+        "uncooked",
+        "cooked",
         "toasted",
         "peeled",
         "real",
+        "skinless",
+        "boneless",
         "large",
         "medium",
         "small",
-        "skinless",
-        "boneless",
+        "jumbo",
+        "thick",
     }
+    sizemods = {"large", "medium", "small", "jumbo", "thick"}
     fractions = {
         "½": 0.5,
         "⅓": 1 / 3,
@@ -74,7 +83,14 @@ class Recipe:
         "⅝": 0.625,
         "⅞": 0.875,
     }
-    smods = {"(optional)", "for frying", "to taste", "for garnish"}
+    smods = {
+        "(optional)",
+        "for frying",
+        "to taste",
+        "for garnish",
+        "for drizzling",
+        "as needed",
+    }
     imods = {"and", "or", "-", "--"}
 
     def __init__(self):
@@ -129,17 +145,28 @@ class Recipe:
         item = item[next_loc:]
 
         # unit
+        # size modifiers (small, medium, large)
+        mod_list = []
+        szmod = item[: item.find(" ")]
+        if szmod in Recipe.sizemods:
+            mod_list.append(szmod)
+            item = item[len(szmod) + 1 :]
+        # actual units
         unit = ""
         possibleunit = item[: item.find(" ")]
-        if possibleunit in Recipe.units or possibleunit[:-1] in Recipe.units:
+        if possibleunit in Recipe.units:
             unit = possibleunit
             item = item[len(possibleunit) + 1 :]
         elif possibleunit[-1] == "s" and possibleunit[:-1] in Recipe.units:
             unit = possibleunit[:-1]
             item = item[len(possibleunit) + 1 :]
+        elif possibleunit.endswith("es") and possibleunit[:-2] in Recipe.units:
+            unit = possibleunit[:-2]
+            item = item[len(possibleunit) + 1 :]
         # ounces regex
         mod = re.search(
-            r"^\(.* ounce\) (cans? |packages? |jars? |cakes? |containers? |)", item
+            r"^\(.* ounce\) (cans? |packages? |jars? |cakes? |containers? |rounds? |bags? |)",
+            item,
         )
         if mod:
             item = item[mod.end() :]
@@ -153,7 +180,6 @@ class Recipe:
             amount *= unit_amount
 
         # modification
-        mod_list = []
         # temperature regex
         mod = re.search(r"\(.*degrees.*\)", item)
         if mod:
@@ -172,6 +198,11 @@ class Recipe:
             if possiblemod[-1] == ",":
                 possiblemod = possiblemod[:-1]
             if possiblemod in Recipe.pmods:
+                # hot dogs and hot sauce :(
+                if possiblemod == "hot" and (
+                    item.startswith("hot dog") or item.startswith("hot sauce")
+                ):
+                    break
                 mod_list.append(possiblemod)
                 item = item[pmodlen + 1 :]
             elif possiblemod in Recipe.imods:
@@ -197,9 +228,12 @@ class Recipe:
                 item = item[: (-len(suf) - 1)]
                 mod_list.append(suf)
 
+        if item.endswith(","):
+            item = item[:-1]
+
         # item splitting
         # i.e. 'salt and pepper'
-        if amount == 0 and unit == "":
+        if (amount == 0 and unit == "") or unit == "pinch":
             split_loc = item.find(" and ")
             if split_loc != -1:
                 item = item.split(" and ")
@@ -222,6 +256,8 @@ class Recipe:
                     self.amounts.append(amount)
                     self.mods.append(mod)
                     self.units.append(unit)
+
+                    i = self.IM.get_group(i) or i
                     self.ingredients.append(i)
 
                     # send item to the ingredient manager `IM`
@@ -232,6 +268,8 @@ class Recipe:
                 self.amounts.append(amount)
                 self.mods.append(mod)
                 self.units.append(unit)
+
+                item = self.IM.get_group(item) or item
                 self.ingredients.append(item)
 
                 # send item to the ingredient manager `IM`
@@ -254,6 +292,7 @@ class RecipeManager:
         self.valid = self.db["valid"]
         self.invalid = self.db["invalid"]
         self.buffer = self.db["buffer"]
+        self.temp = self.db["temp"]
         self.IM = IngredientManager()
 
     # generic function for inserting or updating a document to a collection
@@ -269,11 +308,13 @@ class RecipeManager:
         blacklist = []
         buffer = []
         other = []
-        for ingredient in recipe.ingredients:
-            if self.IM.is_blacklisted(ingredient):
-                blacklist.append(ingredient)
-            if self.IM.is_buffered(ingredient):
-                buffer.append(ingredient)
+        for i in range(len(recipe.ingredients)):
+            if self.IM.is_blacklisted(recipe.ingredients[i]):
+                blacklist.append(recipe.ingredients[i])
+            elif self.IM.is_buffered(recipe.ingredients[i]):
+                buffer.append(recipe.ingredients[i])
+            else:
+                recipe.ingredients[i] = self.IM.get_group(recipe.ingredients[i])
         # make sure ingredients list is not empty (happens occasionally during parsing)
         if not recipe.ingredients:
             other.append("EMPTY")
@@ -305,43 +346,3 @@ class RecipeManager:
                     "mods": recipe.mods,
                 },
             )
-
-    # reprocess invalid items (in case buffer ingredients have been moved to whitelist/blacklist)
-    def process_invalid(self):
-        # iterate through recipes with buffer ingredients
-        for document in self.invalid.find({"buffer": {"$exists": "true"}}):
-            blacklist = document.get("blacklist", [])
-            other = document.get("other", [])
-            buffer = []
-            # iterate through buffer ingredients
-            for ingredient in document["buffer"]:
-                # ingredient is still buffered
-                if self.IM.is_buffered(ingredient):
-                    buffer.append(ingredient)
-                # ingredient has been blacklisted
-                elif self.IM.is_blacklisted(ingredient):
-                    blacklist.append(ingredient)
-                # ingredient has been whitelisted
-                elif self.IM.is_whitelisted(ingredient):
-                    pass
-                # ingredient has somehow disappeared from the manager
-                # re-add it to the buffer
-                else:
-                    self.IM.add_ingredient(ingredient)
-                # if ingredient has been whitelisted, we don't need it anymore
-            # rebuild document payload
-            payload = {"url": document["url"]}
-            if blacklist:
-                payload["blacklist"] = blacklist
-            if buffer:
-                payload["buffer"] = buffer
-            if other:
-                payload["other"] = other
-            self.collection_add("invalid", payload)
-            # if all buffer items have been removed, and there re no additional `blacklist` or `other`
-            # violations, move recipe from `invalid` to `buffer`
-            if not (buffer or blacklist or other):
-                self.invalid.remove({"url": document["url"]})
-                self.collection_add("invalid", payload)
-            else:
-                self.collection_add("buffer", payload)

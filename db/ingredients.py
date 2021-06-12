@@ -14,12 +14,30 @@ class MongoDriver:
 
     # get ingredient group from whitelist
     def get_group(self, name):
+        # basic name
         query = self.whitelist.find({"name": name})
-        try:
-            x = next(query)
-            return x["group"]
-        except StopIteration:
-            return False
+        item = next(query, None)
+        if item:
+            return item["group"]
+        # plural 's'
+        if name.endswith("s"):
+            query = self.whitelist.find({"name": name[:-1]})
+            item = next(query, None)
+            if item:
+                return item["group"]
+        # plural 'es'
+        if name.endswith("es"):
+            query = self.whitelist.find({"name": name[:-2]})
+            item = next(query, None)
+            if item:
+                return item["group"]
+        # plural 'ies'
+        if name.endswith("ies"):
+            query = self.whitelist.find({"name": name[:-3] + "y"})
+            item = next(query, None)
+            if item:
+                return item["group"]
+        return None
 
     # check if ingredient is blacklisted
     def blacklist_check(self, name):
@@ -139,6 +157,10 @@ class IngredientManager:
     # count the number of documents in buffer
     def buffer_size(self):
         return self.mongo.buffer.count_documents({})
+
+    # get item group (resolve X->Y)
+    def get_group(self, name):
+        return self.mongo.get_group(name)
 
     # checks if ingredient `name` or any plural form is whitelisted
     def is_whitelisted(self, name):
