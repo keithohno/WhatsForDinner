@@ -14,29 +14,37 @@ class MongoDriver:
 
     # get ingredient group from whitelist
     def get_group(self, name):
+        doc = self.find_ingredient(name)
+        if doc:
+            return doc["group"]
+        return None
+
+        # get ingredient group from whitelist
+
+    def find_ingredient(self, name):
         # basic name
         query = self.whitelist.find({"name": name})
         item = next(query, None)
         if item:
-            return item["group"]
+            return item
         # plural 's'
         if name.endswith("s"):
             query = self.whitelist.find({"name": name[:-1]})
             item = next(query, None)
             if item:
-                return item["group"]
+                return item
         # plural 'es'
         if name.endswith("es"):
             query = self.whitelist.find({"name": name[:-2]})
             item = next(query, None)
             if item:
-                return item["group"]
+                return item
         # plural 'ies'
         if name.endswith("ies"):
             query = self.whitelist.find({"name": name[:-3] + "y"})
             item = next(query, None)
             if item:
-                return item["group"]
+                return item
         return None
 
     # check if ingredient is blacklisted
@@ -244,8 +252,15 @@ class IngredientManager:
                 group = input("enter Y (or blank for `" + name + "`): ").lower() or name
                 self.mongo.whitelist_add(name, group)
                 self.mongo.buffer.delete_many({"name": name})
+                # adding extra modification
+                resp = input("extra mod (optional): ").lower()
+                if resp != "":
+                    self.mongo.whitelist.update_one(
+                        {"name": name}, {"$set": {"mod": resp}}
+                    )
             else:
                 print("skipping " + name)
+
             # remove item from buffer
 
     def restore_from_local(

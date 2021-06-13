@@ -251,32 +251,40 @@ class Recipe:
         for item in self.raws:
 
             amount, mod_list, unit, item = Recipe.parse_item(item)
-            mod = ", ".join(mod_list)
 
-            # repeat item if split during parsing
+            # put item into list format
+            # this reduces the rest of the code into a single case
+            # this is for dealing with double ingredients like `salt and pepper`
             if isinstance(item, list):
-                for i in item:
-                    self.amounts.append(amount)
-                    self.mods.append(mod)
-                    self.units.append(unit)
-
-                    i = self.IM.get_group(i) or i
-                    self.ingredients.append(i)
-
-                    # send item to the ingredient manager `IM`
-                    self.IM.add_ingredient(i)
-
-            # otherwise, proceed as usual
+                ingredients = item
             else:
-                self.amounts.append(amount)
-                self.mods.append(mod)
-                self.units.append(unit)
+                ingredients = [item]
 
-                item = self.IM.get_group(item) or item
-                self.ingredients.append(item)
+            for i in ingredients:
 
                 # send item to the ingredient manager `IM`
-                self.IM.add_ingredient(item)
+                self.IM.add_ingredient(i)
+
+                # try resolving ingredient name
+                # i.e. `green onion` -> `scallion`
+                doc = self.IM.mongo.find_ingredient(i)
+                if doc:
+                    self.ingredients.append(doc["group"])
+                else:
+                    self.ingredients.append(i)
+
+                # check if ingredient has extra modifications
+                # i.e. `hard-boiled egg`
+                if doc:
+                    extra_mod = doc.get("mod")
+                    if extra_mod:
+                        mod_list.append(extra_mod)
+
+                # set amount/mod/unit vars
+                self.amounts.append(amount)
+                mod = ", ".join(mod_list)
+                self.mods.append(mod)
+                self.units.append(unit)
 
     def __str__(self):
         ret = ""
