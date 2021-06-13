@@ -64,13 +64,15 @@ def reprocess(RM, valid=False, invalid=False, ibuffer=False):
         RM.IM.mongo.buffer.drop()
 
     # reparse all recipes
-    for document in RM.temp.find({}):
-        page = requests.get(document["url"])
+    docs = []
+    for doc in RM.temp.find({}):
+        docs.append(doc)
+    for doc in docs:
+        page = requests.get(doc["url"])
         recipe = parse(page)
         print("PARSED " + page.url)
         RM.add_recipe(recipe, get_recipe_name(page), page.url)
-
-    RM.temp.drop()
+        RM.temp.delete_many({"url": page.url})
 
 
 # delete all invalid recipes from the database and clear the ingredient buffer
