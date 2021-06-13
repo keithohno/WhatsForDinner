@@ -222,9 +222,12 @@ class IngredientManager:
 
     # process everything in the buffer
     def process_buffer(self):
-        # iterate through db buffer
+        # make a local copy of db buffer
+        ingredients = []
         for item in self.mongo.buffer.find():
-            name = item["name"]
+            ingredients.append(item["name"])
+
+        for name in ingredients:
             # begin input process
             print("unrecognized ingredient: " + name)
             resp = input("whitelist or blacklist? (w/b): ").lower()
@@ -233,14 +236,14 @@ class IngredientManager:
                 print("blacklisting X")
                 name = input("enter X (or blank for `" + name + "`): ").lower() or name
                 self.mongo.blacklist_add(name)
-                self.mongo.buffer.delete_many(item)
+                self.mongo.buffer.delete_many({"name": name})
             # whitelist the item
             elif resp == "w":
                 print("adding association X -> Y ")
                 name = input("enter X (or blank for `" + name + "`): ").lower() or name
                 group = input("enter Y (or blank for `" + name + "`): ").lower() or name
                 self.mongo.whitelist_add(name, group)
-                self.mongo.buffer.delete_many(item)
+                self.mongo.buffer.delete_many({"name": name})
             else:
                 print("skipping " + name)
             # remove item from buffer

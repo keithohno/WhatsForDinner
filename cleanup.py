@@ -1,6 +1,6 @@
 from db.recipes import RecipeManager
-from scraper.allrecipes import reprocess_all
+from scraper.allrecipes import reprocess, drop_invalid
 
 if __name__ == "__main__":
     RM = RecipeManager()
-    reprocess_all(RM)
+    drop_invalid(RM)

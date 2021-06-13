@@ -49,19 +49,19 @@ def parse(page):
 
 
 # delete all recipes from the database and send them back through the parser
-def reprocess_all(RM):
-    # copy all urls to temp collection
-    for document in RM.valid.find({}):
-        RM.temp.insert_one({"url": document["url"]})
-    for document in RM.invalid.find({}):
-        RM.temp.insert_one({"url": document["url"]})
-    for document in RM.buffer.find({}):
-        RM.temp.insert_one({"url": document["url"]})
-    # drop recipe and ingredient buffer collections
-    RM.valid.drop()
-    RM.invalid.drop()
-    RM.buffer.drop()
-    RM.IM.mongo.buffer.drop()
+def reprocess(RM, valid=False, invalid=False, ibuffer=False):
+    # copy recipe urls to temp collection
+    if valid:
+        for document in RM.valid.find({}):
+            RM.temp.insert_one({"url": document["url"]})
+        RM.valid.drop()
+    if invalid:
+        for document in RM.invalid.find({}):
+            RM.temp.insert_one({"url": document["url"]})
+        RM.invalid.drop()
+    # drop ingredient buffer
+    if ibuffer:
+        RM.IM.mongo.buffer.drop()
 
     # reparse all recipes
     for document in RM.temp.find({}):
@@ -70,6 +70,13 @@ def reprocess_all(RM):
         print("PARSED " + page.url)
         RM.add_recipe(recipe, get_recipe_name(page), page.url)
 
+    RM.temp.drop()
+
+
+# delete all invalid recipes from the database and clear the ingredient buffer
+def drop_invalid(RM):
+    RM.invalid.drop()
+    RM.IM.mongo.buffer.drop()
     RM.temp.drop()
 
 
@@ -90,3 +97,4 @@ if __name__ == "__main__":
             page = explore(page)
         # process buffer items
         IM.process_buffer()
+        reprocess(RM, invalid=True, ibuffer=True)

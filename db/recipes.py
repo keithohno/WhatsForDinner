@@ -22,6 +22,7 @@ class Recipe:
         "bunch",
         "head",
         "stalk",
+        "sprig",
         "ear",
         "slice",
         "loaf",
@@ -86,9 +87,11 @@ class Recipe:
     smods = {
         "(optional)",
         "for frying",
+        "for deep frying",
         "to taste",
         "for garnish",
         "for drizzling",
+        "for dusting",
         "as needed",
     }
     imods = {"and", "or", "-", "--"}
@@ -291,7 +294,6 @@ class RecipeManager:
         self.db = self.client["recipes"]
         self.valid = self.db["valid"]
         self.invalid = self.db["invalid"]
-        self.buffer = self.db["buffer"]
         self.temp = self.db["temp"]
         self.IM = IngredientManager()
 
