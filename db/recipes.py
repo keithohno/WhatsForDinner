@@ -107,45 +107,28 @@ class Recipe:
     def add(self, raw):
         self.raws.append(" ".join(raw.split()).lower().strip())
 
+    def extract_amount(item_str):
+        # decimal format
+        res = re.match("\d+\.\d+", item_str)
+        if res:
+            return item_str[res.end():].strip(), float(res.group())
+
+        # whole number / fraction format
+        amount = 0
+        res = re.match("(\d+)?\s?(½|⅓|⅔|¼|¾|⅛|⅜|⅝|⅞)?", item_str)
+        if res:
+            if res.group(1):
+                amount += int(res.group(1))
+            if res.group(2):
+                amount += Recipe.fractions[res.group(2)]
+            return item_str[res.end():].strip(), amount
+
+
+
     @staticmethod
     def parse_item(item):
 
-        # parsing out the fraction:
-        # this chops off the numerical front end of the ingredient string
-        # find fraction character
-        for frac in Recipe.fractions:
-            frac_loc = item.find(frac)
-            if frac_loc != -1:
-                break
-        # setting frac_part
-        # no fractions -- frac_part = 0
-        if frac_loc == -1:
-            frac_part = 0
-            next_loc = item.find(" ") + 1
-        # fraction found -- use fraction dictionary
-        else:
-            frac_part = Recipe.fractions[frac]
-            next_loc = frac_loc + 2
-        # setting int_part
-        # only fractional part -- int_part = 0
-        if frac_loc == 0:
-            int_part = 0
-        # possibly mixed number
-        else:
-            end = item.find(" ")
-            # try to parse first word as an int
-            try:
-                int_part = int(item[:end])
-            except ValueError:
-                # try to parse first word as a decimal
-                try:
-                    int_part = float(item[:end])
-                except ValueError:
-                    # there is no number
-                    int_part = 0
-                    next_loc = 0
-        amount = frac_part + int_part
-        item = item[next_loc:]
+        item, amount = Recipe.extract_amount(item)
 
         # unit
         # size modifiers (small, medium, large)
