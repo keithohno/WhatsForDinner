@@ -14,6 +14,7 @@ class Recipe:
         "pinch",
         "dash",
         "ounce",
+        "fluid ounce",
         "pound",
         "can",
         "package",
@@ -23,6 +24,7 @@ class Recipe:
         "head",
         "stalk",
         "sprig",
+        "leaves",
         "ear",
         "slice",
         "loaf",
@@ -33,9 +35,9 @@ class Recipe:
         "chopped",
         "shredded",
         "diced",
+        "cubed",
         "minced",
         "grated",
-        "sharp",
         "sliced",
         "crushed",
         "mashed",
@@ -48,10 +50,10 @@ class Recipe:
         "scalded",
         "frozen",
         "sifted",
+        "very",
         "thinly",
         "finely",
         "freshly",
-        "hot",
         "cold",
         "warm",
         "boiling",
@@ -64,15 +66,14 @@ class Recipe:
         "toasted",
         "peeled",
         "real",
+        "whole",
         "skinless",
         "boneless",
-        "large",
-        "medium",
-        "small",
-        "jumbo",
-        "thick",
+        "skin-on",
+        "bone-in",
+        "and",
+        "or"
     }
-    sizemods = {"large", "medium", "small", "jumbo", "thick"}
     fractions = {
         "½": 0.5,
         "⅓": 1 / 3,
@@ -107,94 +108,102 @@ class Recipe:
     def add(self, raw):
         self.raws.append(" ".join(raw.split()).lower().strip())
 
+    # extracts decimal/integer/fractional amount from the front
     def extract_amount(item_str):
         # decimal format
-        res = re.match("\d+\.\d+", item_str)
+        res = re.match(r"\d+\.\d+", item_str)
         if res:
             return item_str[res.end():].strip(), float(res.group())
 
         # whole number / fraction format
         amount = 0
-        res = re.match("(\d+)?\s?(½|⅓|⅔|¼|¾|⅛|⅜|⅝|⅞)?", item_str)
+        res = re.match(r"(\d+)?\s?(½|⅓|⅔|¼|¾|⅛|⅜|⅝|⅞)?", item_str)
         if res:
             if res.group(1):
                 amount += int(res.group(1))
             if res.group(2):
                 amount += Recipe.fractions[res.group(2)]
             return item_str[res.end():].strip(), amount
+        return item_str, 1
 
+    # extracts small/medium/large/etc. from the front
+    def extract_size_mod(item_str):
+        res = re.match(r"large|medium|small|jumbo|thick", item_str)
+        if res:
+            return item_str[res.end():].strip(), res.group()
+        return item_str, None
 
+    # extracts cups/tablespoon/etc. from the front
+    def extract_unit(item_str):
+        pattern = "(" + "|".join(Recipe.units) + ")"
+        pattern += "(es|s)?"
+        res = re.match(pattern, item_str)
+        if res:
+            return item_str[res.end():].strip(), res.group(1)
+        return item_str, None
+
+    # extracts (x ounce package/bag/etc.) construction from the front
+    def extract_ounce_mod(item_str):
+        res = re.match(
+            r"\((\d*(?:\.\d*)?).* ounce\) (((can|package|jar|cake|container|round|bag|bottle|or)s?\s){0,3})",
+            item_str
+        )
+        if res:
+            try:
+                ounce_amount = int(res.group(1))
+            except ValueError:
+                ounce_amount = float(res.group(1))
+            return item_str[res.end():].strip(), ounce_amount
+        return item_str, None
+    
+    # extracts (x degrees F/C) from anywhere
+    def extract_temp_mod(item_str):
+        res = re.search(r"\s\((.*degrees.*)\)", item_str)
+        if res:
+            return item_str[:res.start()] + item_str[res.end():], res.group(1)
+        return item_str, None
+    
+    # extracts (such as ...) and (preferably ...) from anywhere
+    def extract_spec_mod(item_str):
+        res = re.search(r"\s\((such as.*|preferably.*)\)", item_str)
+        if res:
+            return item_str[:res.start()] + item_str[res.end():], res.group(1)
+        return item_str, None
+
+    # extracts prefix mods from the front
+    def extract_prefix_mod(item_str):
+        pattern = "(" + "|".join(Recipe.pmods) + ")"
+        pattern = "(" + pattern + r",?\s)*"
+        res = re.search(pattern, item_str)
+        if res:
+            return item_str[res.end():].strip(), res.group()
+        return item_str, None
 
     @staticmethod
     def parse_item(item):
 
         item, amount = Recipe.extract_amount(item)
+        item, size_mod = Recipe.extract_size_mod(item)
+        item, unit = Recipe.extract_unit(item)
+        item, ounce_amount = Recipe.extract_ounce_mod(item)
 
-        # unit
-        # size modifiers (small, medium, large)
-        mod_list = []
-        szmod = item[: item.find(" ")]
-        if szmod in Recipe.sizemods:
-            mod_list.append(szmod)
-            item = item[len(szmod) + 1 :]
-        # actual units
-        unit = ""
-        possibleunit = item[: item.find(" ")]
-        if possibleunit in Recipe.units:
-            unit = possibleunit
-            item = item[len(possibleunit) + 1 :]
-        elif possibleunit[-1] == "s" and possibleunit[:-1] in Recipe.units:
-            unit = possibleunit[:-1]
-            item = item[len(possibleunit) + 1 :]
-        elif possibleunit.endswith("es") and possibleunit[:-2] in Recipe.units:
-            unit = possibleunit[:-2]
-            item = item[len(possibleunit) + 1 :]
-        # ounces regex
-        mod = re.search(
-            r"^\(.* ounce\) (cans? |packages? |jars? |cakes? |containers? |rounds? |bags? |)",
-            item,
-        )
-        if mod:
-            item = item[mod.end() :]
-            mod = mod.group()
-            unit_amount = mod[1 : mod.find(" ")]
-            try:
-                unit_amount = int(unit_amount)
-            except ValueError:
-                unit_amount = float(unit_amount)
+        if ounce_amount:
+            amount *= ounce_amount
             unit = "ounce"
-            amount *= unit_amount
-
-        # modification
-        # temperature regex
-        mod = re.search(r"\(.*degrees.*\)", item)
-        if mod:
-            item = item[: mod.start() - 1] + item[mod.end() :]
-            mod_list.append(item[mod.start() + 1 : mod.end() - 1])
-        # 'such as' or 'preferably' regex
-        mod = re.search(r"\((such as|preferably).*\)", item)
-        if mod:
-            item = item[: mod.start() - 1] + item[mod.end() :]
-            mod_list.append(item[mod.start() + 1 : mod.end() - 1])
-
-        # prefix modifiers (diced, shredded, etc.)
-        while True:
-            possiblemod = item[: item.find(" ")]
-            pmodlen = len(possiblemod)
-            if possiblemod[-1] == ",":
-                possiblemod = possiblemod[:-1]
-            if possiblemod in Recipe.pmods:
-                # hot dogs and hot sauce :(
-                if possiblemod == "hot" and (
-                    item.startswith("hot dog") or item.startswith("hot sauce")
-                ):
-                    break
-                mod_list.append(possiblemod)
-                item = item[pmodlen + 1 :]
-            elif possiblemod in Recipe.imods:
-                item = item[pmodlen + 1 :]
-            else:
-                break
+        
+        item, temp_mod = Recipe.extract_temp_mod(item)
+        item, spec_mod = Recipe.extract_spec_mod(item)
+        item, prefix_mod = Recipe.extract_prefix_mod(item)
+        
+        mod_list = []
+        if size_mod:
+            mod_list.append(size_mod)
+        if temp_mod:
+            mod_list.append(temp_mod)
+        if spec_mod:
+            mod_list.append(spec_mod)
+        if prefix_mod:
+            mod_list.append(prefix_mod)
 
         # suffix modifiers
         for suf in Recipe.smods:
@@ -219,7 +228,7 @@ class Recipe:
 
         # item splitting
         # i.e. 'salt and pepper'
-        if (amount == 0 and unit == "") or unit == "pinch":
+        if re.match(".*salt.*(and|or).*pepper.*", item):
             split_loc = item.find(" and ")
             if split_loc != -1:
                 item = item.split(" and ")
