@@ -66,7 +66,6 @@ class Recipe:
         "toasted",
         "peeled",
         "real",
-        "whole",
         "skinless",
         "boneless",
         "skin-on",
@@ -307,14 +306,11 @@ class RecipeManager:
     # adds a recipe to the database
     def add_recipe(self, recipe, name, url):
         # make sure all ingredients are on the whitelist
-        blacklist = []
-        buffer = []
+        greylist = []
         other = []
         for i in range(len(recipe.ingredients)):
-            if self.IM.is_blacklisted(recipe.ingredients[i]):
-                blacklist.append(recipe.ingredients[i])
-            elif self.IM.is_buffered(recipe.ingredients[i]):
-                buffer.append(recipe.ingredients[i])
+            if self.IM.is_greylisted(recipe.ingredients[i]):
+                greylist.append(recipe.ingredients[i])
             else:
                 recipe.ingredients[i] = self.IM.get_group(recipe.ingredients[i])
         # make sure ingredients list is not empty (happens occasionally during parsing)
@@ -323,15 +319,13 @@ class RecipeManager:
         # make sure recipe title was properly parsed
         if not name:
             other.append("NO NAME")
-        # blacklist/buffer/other is not empty => recipe should be marked invalid
+        # greylist/other is not empty => recipe should be marked invalid
         # only includes recipe number and lists of 'offenses'
-        if blacklist or buffer or other:
+        if greylist or other:
             # build payload
             payload = {"url": url}
-            if blacklist:
-                payload["blacklist"] = blacklist
-            if buffer:
-                payload["buffer"] = buffer
+            if greylist:
+                payload["greylist"] = greylist
             if other:
                 payload["other"] = other
             self.collection_add("invalid", payload)

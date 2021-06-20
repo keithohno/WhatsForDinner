@@ -49,7 +49,7 @@ def parse(page):
 
 
 # delete all recipes from the database and send them back through the parser
-def reprocess(RM, valid=False, invalid=False, ibuffer=False):
+def reprocess(RM, valid=False, invalid=False, greylist=False):
     # copy recipe urls to temp collection
     if valid:
         for document in RM.valid.find({}):
@@ -59,9 +59,9 @@ def reprocess(RM, valid=False, invalid=False, ibuffer=False):
         for document in RM.invalid.find({}):
             RM.temp.insert_one({"url": document["url"]})
         RM.invalid.drop()
-    # drop ingredient buffer
-    if ibuffer:
-        RM.IM.mongo.buffer.drop()
+    # drop ingredient greylist
+    if greylist:
+        RM.IM.mongo.greylist.drop()
 
     # reparse all recipes
     docs = []
@@ -75,10 +75,10 @@ def reprocess(RM, valid=False, invalid=False, ibuffer=False):
         RM.temp.delete_many({"url": page.url})
 
 
-# delete all invalid recipes from the database and clear the ingredient buffer
+# delete all invalid recipes from the database and clear the ingredient greylist
 def drop_invalid(RM):
     RM.invalid.drop()
-    RM.IM.mongo.buffer.drop()
+    RM.IM.mongo.greylist.drop()
     RM.temp.drop()
 
 
@@ -88,15 +88,15 @@ if __name__ == "__main__":
     page = requests.get(ROOT_URL)
     while True:
         # keep finding new recipes by exploring random links
-        # stop when ingredient buffer gets too large
-        while IM.buffer_size() < 100:
+        # stop when ingredient greylist gets too large
+        while IM.greylist_size() < 1000:
             print("VISITED " + page.url)
             recipe = parse(page)
             if recipe:
                 print("PARSED " + page.url)
                 RM.add_recipe(recipe, get_recipe_name(page), page.url)
-                print("BUFSIZE: " + str(IM.buffer_size()))
+                print("GREYSIZE: " + str(IM.greylist_size()))
             page = explore(page)
-        # process buffer items
-        IM.process_buffer()
-        reprocess(RM, invalid=True, ibuffer=True)
+        # process greylist items
+        IM.process_greylist()
+        reprocess(RM, invalid=True, greylist=True)
