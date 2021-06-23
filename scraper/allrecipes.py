@@ -49,19 +49,25 @@ def parse(page):
 
 
 # delete all recipes from the database and send them back through the parser
-def reprocess(RM, valid=False, invalid=False, greylist=False):
-    # copy recipe urls to temp collection
-    if valid:
-        for document in RM.valid.find({}):
-            RM.temp.insert_one({"url": document["url"]})
-        RM.valid.drop()
-    if invalid:
-        for document in RM.invalid.find({}):
-            RM.temp.insert_one({"url": document["url"]})
-        RM.invalid.drop()
-    # drop ingredient greylist
-    if greylist:
-        RM.IM.mongo.greylist.drop()
+def reprocess(RM, valid=False, invalid=False):
+
+    # only move docs to temp if temp is empty
+    # otherwise just finish reprocessing temp
+    if RM.temp.count_documents({}) == 0:
+        # copy recipe urls to temp collection
+        if valid:
+            print("MOVING valid -> temp")
+            for document in RM.valid.find({}):
+                RM.temp.insert_one({"url": document["url"]})
+            RM.valid.drop()
+        if invalid:
+            print("MOVING invalid -> temp")
+            for document in RM.invalid.find({}):
+                RM.temp.insert_one({"url": document["url"]})
+            RM.invalid.drop()
+            RM.IM.greylist.drop()
+    else:
+        print("RESUMING previous reprocess operation")
 
     # reparse all recipes
     docs = []
@@ -89,7 +95,7 @@ if __name__ == "__main__":
     while True:
         # keep finding new recipes by exploring random links
         # stop when ingredient greylist gets too large
-        while IM.greylist_size() < 1000:
+        while True:
             print("VISITED " + page.url)
             recipe = parse(page)
             if recipe:
@@ -97,6 +103,3 @@ if __name__ == "__main__":
                 RM.add_recipe(recipe, get_recipe_name(page), page.url)
                 print("GREYSIZE: " + str(IM.greylist_size()))
             page = explore(page)
-        # process greylist items
-        IM.process_greylist()
-        reprocess(RM, invalid=True, greylist=True)
