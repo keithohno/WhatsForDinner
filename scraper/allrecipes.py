@@ -65,7 +65,7 @@ def reprocess(RM, valid=False, invalid=False):
             for document in RM.invalid.find({}):
                 RM.temp.insert_one({"url": document["url"]})
             RM.invalid.drop()
-            RM.IM.greylist.drop()
+            RM.IM.mongo.greylist.drop()
     else:
         print("RESUMING previous reprocess operation")
 
