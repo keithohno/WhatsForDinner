@@ -152,12 +152,20 @@ class Recipe:
                 ounce_amount = int(res.group(1))
             except ValueError:
                 ounce_amount = float(res.group(1))
-            return item_str[res.end():].strip(), ounce_amount
+            canned = "canned " if "can" in res.group() else ""
+            return canned + item_str[res.end():].strip(), ounce_amount
         return item_str, None
     
     # extracts (x degrees F/C) from anywhere
     def extract_temp_mod(item_str):
         res = re.search(r"\s\((.*degrees.*)\)", item_str)
+        if res:
+            return item_str[:res.start()] + item_str[res.end():], res.group(1)
+        return item_str, None
+    
+    # extracts (x inch) from anywhere
+    def extract_inch_mod(item_str):
+        res = re.search(r"\s\((.*inch.*)\)", item_str)
         if res:
             return item_str[:res.start()] + item_str[res.end():], res.group(1)
         return item_str, None
@@ -191,6 +199,7 @@ class Recipe:
             unit = "ounce"
         
         item, temp_mod = Recipe.extract_temp_mod(item)
+        item, inch_mod = Recipe.extract_inch_mod(item)
         item, spec_mod = Recipe.extract_spec_mod(item)
         item, prefix_mod = Recipe.extract_prefix_mod(item)
         
@@ -199,6 +208,8 @@ class Recipe:
             mod_list.append(size_mod)
         if temp_mod:
             mod_list.append(temp_mod)
+        if inch_mod:
+            mod_list.append(inch_mod)
         if spec_mod:
             mod_list.append(spec_mod)
         if prefix_mod:
