@@ -49,42 +49,47 @@ def parse(page):
 
 
 # delete all recipes from the database and send them back through the parser
-def reprocess(RM, valid=False, invalid=False):
+def reprocess(RM, valid=False, invalid=False, whitelist=False, greylist=False):
 
-    # only move docs to temp if temp is empty
-    # otherwise just finish reprocessing temp
-    if RM.temp.count_documents({}) == 0:
-        # copy recipe urls to temp collection
-        if valid:
-            print("MOVING valid -> temp")
-            for document in RM.valid.find({}):
-                RM.temp.insert_one({"url": document["url"]})
-            RM.valid.drop()
-        if invalid:
-            print("MOVING invalid -> temp")
-            for document in RM.invalid.find({}):
-                RM.temp.insert_one({"url": document["url"]})
-            RM.invalid.drop()
-            RM.IM.mongo.greylist.drop()
+    # copy recipe urls to temp collections
+    if valid:
+        print("MOVING valid -> temp")
+        for document in RM.valid.find({}):
+            RM.valid_temp.insert_one({"url": document["url"]})
+        RM.valid.drop()
+    if invalid:
+        print("MOVING invalid -> temp")
+        for document in RM.invalid.find({}):
+            RM.invalid_temp.insert_one({"url": document["url"]})
+        RM.invalid.drop()
+    if greylist:
+        RM.IM.greylist.drop()
     else:
         print("RESUMING previous reprocess operation")
 
+    # reset whitelist ingredient counts
+    if whitelist:
+        RM.IM.whitelist.update_many({}, {"$set": {"count": 0, "gcount": 0}})
+
     # reparse all recipes
     docs = []
-    for doc in RM.temp.find({}):
+    for doc in RM.valid_temp.find({}):
+        docs.append(doc)
+    for doc in RM.invalid_temp.find({}):
         docs.append(doc)
     for doc in docs:
         page = requests.get(doc["url"])
         recipe = parse(page)
         print("PARSED " + page.url)
         RM.add_recipe(recipe, get_recipe_name(page), page.url)
-        RM.temp.delete_many({"url": page.url})
+        RM.valid_temp.delete_many({"url": page.url})
+        RM.invalid_temp.delete_many({"url": page.url})
 
 
 # delete all invalid recipes from the database and clear the ingredient greylist
 def drop_invalid(RM):
     RM.invalid.drop()
-    RM.IM.mongo.greylist.drop()
+    RM.IM.greylist.drop()
     RM.temp.drop()
 
 

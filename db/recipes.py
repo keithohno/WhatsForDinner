@@ -265,11 +265,11 @@ class Recipe:
             for i in ingredients:
 
                 # send item to the ingredient manager `IM`
-                self.IM.add_ingredient(i)
+                self.IM.process_ingredient(i)
 
                 # try resolving ingredient name
                 # i.e. `green onion` -> `scallion`
-                doc = self.IM.mongo.find_ingredient(i)
+                doc = self.IM.whitelist_get(i)
                 if doc:
                     self.ingredients.append(doc["group"])
                 else:
@@ -304,7 +304,8 @@ class RecipeManager:
         self.db = self.client["recipes"]
         self.valid = self.db["valid"]
         self.invalid = self.db["invalid"]
-        self.temp = self.db["temp"]
+        self.valid_temp = self.db["valid_temp"]
+        self.invalid_temp = self.db["invalid_temp"]
         self.IM = IngredientManager()
 
     # generic function for inserting or updating a document to a collection
@@ -318,27 +319,18 @@ class RecipeManager:
     def add_recipe(self, recipe, name, url):
         # make sure all ingredients are on the whitelist
         greylist = []
-        other = []
         for i in range(len(recipe.ingredients)):
             if self.IM.is_greylisted(recipe.ingredients[i]):
                 greylist.append(recipe.ingredients[i])
             else:
                 recipe.ingredients[i] = self.IM.get_group(recipe.ingredients[i])
-        # make sure ingredients list is not empty (happens occasionally during parsing)
-        if not recipe.ingredients:
-            other.append("EMPTY")
-        # make sure recipe title was properly parsed
-        if not name:
-            other.append("NO NAME")
         # greylist/other is not empty => recipe should be marked invalid
         # only includes recipe number and lists of 'offenses'
-        if greylist or other:
+        if greylist:
             # build payload
             payload = {"url": url}
             if greylist:
                 payload["greylist"] = greylist
-            if other:
-                payload["other"] = other
             self.collection_add("invalid", payload)
         # add recipe to `valid` list
         else:
