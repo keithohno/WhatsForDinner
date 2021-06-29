@@ -66,6 +66,7 @@ class Recipe:
         "toasted",
         "peeled",
         "real",
+        "canned",
         "skinless",
         "boneless",
         "skin-on",
@@ -163,11 +164,11 @@ class Recipe:
             return item_str[:res.start()] + item_str[res.end():], res.group(1)
         return item_str, None
     
-    # extracts (x inch) from anywhere
+    # extracts (x inch) from the front
     def extract_inch_mod(item_str):
-        res = re.search(r"\s\((.*inch.*)\)", item_str)
+        res = re.match(r"\((.*inch.*)\)", item_str)
         if res:
-            return item_str[:res.start()] + item_str[res.end():], res.group(1)
+            return item_str[res.end():].strip(), res.group(1)
         return item_str, None
     
     # extracts (such as ...) and (preferably ...) from anywhere
@@ -291,7 +292,7 @@ class Recipe:
     def __str__(self):
         ret = ""
         for a, u, i, m in zip(self.amounts, self.units, self.ingredients, self.mods):
-            ret += str.format("{:<6} | {:<20} | {:<40} | {}\n", round(a, 3), u, i, m)
+            ret += str.format("{:<6} | {:<20} | {:<40} | {}\n", round(a, 3), u or "", i, m)
         return ret
 
 
