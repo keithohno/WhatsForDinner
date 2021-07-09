@@ -300,7 +300,7 @@ class RecipeManager:
     def __init__(self):
         uri = "mongodb+srv://cluster0.a55mv.mongodb.net/data?authSource=%24external&authMechanism=MONGODB-X509&retryWrites=true&w=majority"
         self.client = pymongo.MongoClient(
-            uri, tls=True, tlsCertificateKeyFile="X509-cert-192195340096089653.pem"
+            uri, tls=True, tlsCertificateKeyFile="../X509-cert-192195340096089653.pem"
         )
         self.db = self.client["recipes"]
         self.valid = self.db["valid"]

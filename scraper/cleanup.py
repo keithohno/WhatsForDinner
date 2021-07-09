@@ -1,5 +1,5 @@
 from db.recipes import RecipeManager
-from scraper.allrecipes import *
+from allrecipes import *
 
 if __name__ == "__main__":
     RM = RecipeManager()

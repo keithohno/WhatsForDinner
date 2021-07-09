@@ -1,6 +1,6 @@
 
 from db.ingredients import IngredientManager
-from scraper.allrecipes import *
+from allrecipes import *
 import requests
 
 if __name__ == "__main__":
