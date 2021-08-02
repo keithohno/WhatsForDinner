@@ -25,7 +25,7 @@ export default {
   },
   methods: {
     query() {
-      const path = process.env.VUE_APP_SERVER_URL + "/dinner/query";
+      const path = process.env.VUE_APP_SERVER_URL + "/query";
       axios
         .post(path, { query: JSON.parse(this.filter) })
         .then((res) => {
