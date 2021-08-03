@@ -1,11 +1,13 @@
 from os import write
-from flask import Flask, jsonify, request
-from flask_cors import CORS
+from flask import Flask, jsonify, request, session
+from flask_cors import CORS, cross_origin
 import pymongo
+import os
 import json
+import uuid
 
-# app setup with CORS
 app = Flask(__name__)
+app.config.update(SECRET_KEY=os.urandom(16))
 app.config.from_object(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
@@ -25,14 +27,39 @@ db = setup_db()
 
 # query route
 @app.route("/query", methods=["POST"])
+@cross_origin(supports_credentials=True)
 def query():
+    # create new session if we need one
+    if not 'sid' in session:
+        session['sid'] = uuid.uuid4()
+        session['cpos'] = 0
+    print(session['sid'])
+    # extract query from POST
     post_data = request.get_json()
     query = post_data["query"]
-    print("query received: " + json.dumps(query, indent=4))
-    res = db.find_one(query)
-    res["_id"] = str(res["_id"])
+    session['query'] = query
+    # get MongoDB query results (list of ten)
+    res = list(db.find(query)[session['cpos']:session['cpos']+10])
+    for r in res:
+        r["_id"] = str(r["_id"])
     response_object = {"res": res}
-    print("responded with: " + json.dumps(res, indent=4))
+    # response
+    return jsonify(response_object)
+
+
+# query route
+@app.route("/querynext", methods=["GET"])
+@cross_origin(supports_credentials=True)
+def querynext():
+    # retrieve query and curosr position
+    query = session['query']
+    session['cpos'] += 10
+    # return results of find sliced 10 positions ahead
+    res = list(db.find(query)[session['cpos']:session['cpos']+10])
+    for r in res:
+        r["_id"] = str(r["_id"])
+    response_object = {"res": res}
+    # response
     return jsonify(response_object)
 
 

@@ -7,27 +7,45 @@
         <button class="btn btn-outline-secondary" @click="query">QUERY</button>
       </div>
     </div>
-    <p>{{ server_res }}</p>
+    <button class="btn btn-outline-secondary" @click="querynext">NEXT</button>
+    <Recipe v-for="recipe in server_res" :recipe="recipe" :key="recipe._id" />
   </div>
 </template>
 
 <script>
 import axios from "axios";
 import Navbar from "./Navbar";
+import Recipe from "./recipe/Recipe";
 
 export default {
   name: "HomeScreen",
   data: () => {
     return {
       filter: "{}",
-      server_res: "",
+      server_res: {},
     };
   },
   methods: {
     query() {
       const path = process.env.VUE_APP_SERVER_URL + "/query";
       axios
-        .post(path, { query: JSON.parse(this.filter) })
+        .post(
+          path,
+          { query: JSON.parse(this.filter) },
+          { withCredentials: true }
+        )
+        .then((res) => {
+          console.log("success");
+          this.server_res = res["data"]["res"];
+        })
+        .catch((error) => {
+          console.error(error);
+        });
+    },
+    querynext() {
+      const path = process.env.VUE_APP_SERVER_URL + "/querynext";
+      axios
+        .get(path, { withCredentials: true })
         .then((res) => {
           console.log("success");
           this.server_res = res["data"]["res"];
@@ -39,6 +57,7 @@ export default {
   },
   components: {
     Navbar,
+    Recipe,
   },
 };
 </script>
