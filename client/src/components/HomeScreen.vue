@@ -1,12 +1,7 @@
 <template>
   <div class="container">
     <Navbar current="home" />
-    <div class="input-group query-input mb-3">
-      <input class="form-control" v-model="filter" />
-      <div class="input-group-append">
-        <button class="btn btn-outline-secondary" @click="query">QUERY</button>
-      </div>
-    </div>
+    <QueryOptions @query="query" />
     <button class="btn btn-outline-secondary" @click="querynext">NEXT</button>
     <Recipe v-for="recipe in server_res" :recipe="recipe" :key="recipe._id" />
   </div>
@@ -16,24 +11,31 @@
 import axios from "axios";
 import Navbar from "./Navbar";
 import Recipe from "./recipe/Recipe";
+import QueryOptions from "./QueryOptions";
 
 export default {
   name: "HomeScreen",
   data: () => {
     return {
-      filter: "{}",
       server_res: {},
     };
   },
+  computed: {
+    ingredients() {
+      return this.$store.state.ingredients;
+    },
+  },
   methods: {
     query() {
+      let filter_ingredients = this.ingredients.filter((x) => x != "");
+      let filter = {
+        query: {
+          ingredients: { $all: filter_ingredients },
+        },
+      };
       const path = process.env.VUE_APP_SERVER_URL + "/query";
       axios
-        .post(
-          path,
-          { query: JSON.parse(this.filter) },
-          { withCredentials: true }
-        )
+        .post(path, filter, { withCredentials: true })
         .then((res) => {
           console.log("success");
           this.server_res = res["data"]["res"];
@@ -58,12 +60,7 @@ export default {
   components: {
     Navbar,
     Recipe,
+    QueryOptions,
   },
 };
 </script>
-
-<style scoped>
-.query-input {
-  max-width: 500px;
-}
-</style>

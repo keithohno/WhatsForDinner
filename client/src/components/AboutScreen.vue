@@ -16,17 +16,18 @@
         </li>
         <li>
           <div class="mb-2">
-            Backend -- A RESTful API that will eventually support a variety of
-            recipe/ingredient queries. At the moment, it just directly forwards
-            JSON filters to the MongoDB database, and returns a single JSONified
-            recipe result.
+            Backend -- A RESTful Flask API that will eventually support a
+            variety of recipe/ingredient queries. At the moment, it just
+            directly forwards JSON filters to the MongoDB database, and returns
+            a single JSONified recipe result.
           </div>
         </li>
         <li>
           <div class="mb-2">
-            Frontend -- The least developed part of the project. As you can see,
-            there is almost nothing to look at on the frontend. Eventually it
-            will look a bit nicer :')
+            Frontend -- A simple Vue-based SPA that allows users to select
+            specific ingredients to use in queries. Eventually, it will include
+            more options for more specific requests, as well as a more visually
+            pleasing interface.
           </div>
         </li>
       </ul>
