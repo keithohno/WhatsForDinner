@@ -16,7 +16,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 def setup_db():
     uri = "mongodb+srv://cluster0.a55mv.mongodb.net/data?authSource=%24external&authMechanism=MONGODB-X509&retryWrites=true&w=majority"
     client = pymongo.MongoClient(
-        uri, tls=True, tlsCertificateKeyFile="../X509-cert-192195340096089653.pem"
+        uri, tls=True, tlsCertificateKeyFile="../mongocert.pem"
     )
     db = client["recipes"]
     return db["valid"]
