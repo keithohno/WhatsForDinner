@@ -1,7 +1,11 @@
 <template>
-  <div class="container">
-    <Navbar current="home" />
-    <QueryOptions @query="query" />
+  <div class="container my-box">
+    <div class="row">
+      <Navbar current="home" />
+    </div>
+    <div class="row my-querybox mb-4 pt-2 pb-3">
+      <QueryOptions @query="query" />
+    </div>
     <button class="btn btn-outline-secondary" @click="querynext">NEXT</button>
     <Recipe v-for="recipe in server_res" :recipe="recipe" :key="recipe._id" />
   </div>
@@ -64,3 +68,13 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.my-box {
+  max-width: 600px;
+}
+.my-querybox {
+  padding: 4px;
+  border: 3px solid #e9f5ff;
+}
+</style>

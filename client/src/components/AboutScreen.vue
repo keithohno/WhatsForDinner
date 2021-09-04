@@ -1,6 +1,8 @@
 <template>
-  <div class="container">
-    <Navbar current="about" />
+  <div class="container my-box">
+    <div class="row">
+      <Navbar current="about" />
+    </div>
     <div class="about-section">
       <div class="mb-2">Eventually, this app will have 3 primary modules:</div>
       <ul>
@@ -46,7 +48,7 @@ export default {
 </script>
 
 <style scoped>
-.about-section {
-  max-width: 750px;
+.my-box {
+  max-width: 600px;
 }
 </style>

@@ -12,6 +12,10 @@ export default createStore({
       state.count++;
       state.ingredients.push(ingredient);
     },
+    remove_ingredient(state, index) {
+      state.count--;
+      state.ingredients.splice(index, 1);
+    },
     edit_ingredient(state, payload) {
       state.ingredients[payload.index] = payload.value;
     }
